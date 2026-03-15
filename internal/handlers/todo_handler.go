@@ -16,13 +16,6 @@ type Todo struct {
 	Done  bool   `json:"done"`
 }
 
-// GetTodos godoc
-// @Summary Get all todos
-// @Description get list of todos
-// @Tags todos
-// @Produce json
-// @Success 200 {array} Todo
-// @Router /api/todos [get]
 func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query("SELECT id, title, done FROM todos")
 	if err != nil {
@@ -45,15 +38,6 @@ func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(todos)
 }
 
-// CreateTodo godoc
-// @Summary Create todo
-// @Description create new todo
-// @Tags todos
-// @Accept json
-// @Produce json
-// @Param todo body Todo true "Todo object"
-// @Success 200 {object} Todo
-// @Router /api/create [post]
 func (h *Handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	var todo Todo
 	if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
