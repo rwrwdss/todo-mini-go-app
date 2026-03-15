@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -94,4 +95,120 @@ func (h *Handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	todo.ID = int(id)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(todo)
+}
+
+// parseTodoID извлекает id из пути вида /api/todos/123.
+func parseTodoID(path, prefix string) (int, bool) {
+	s := strings.TrimPrefix(path, prefix)
+	s = strings.Trim(s, "/")
+	if s == "" {
+		return 0, false
+	}
+	id, err := strconv.Atoi(s)
+	if err != nil || id < 1 {
+		return 0, false
+	}
+	return id, true
+}
+
+// UpdateTodo godoc
+// @Summary Update todo
+// @Description update todo by id (title and/or done). Use for edit and for complete/undo.
+// @Tags todos
+// @Accept json
+// @Produce json
+// @Param id path int true "Todo ID"
+// @Param body body Todo true "Fields to update (title and/or done)"
+// @Success 200 {object} Todo
+// @Failure 404 "Todo not found"
+// @Router /api/todos/{id} [patch]
+func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch && r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id, ok := parseTodoID(r.URL.Path, "/api/todos/")
+	if !ok {
+		http.Error(w, "Invalid todo id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Title *string `json:"title"`
+		Done  *bool   `json:"done"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	var title string
+	var done bool
+	if err := h.DB.QueryRow("SELECT title, done FROM todos WHERE id = ?", id).Scan(&title, &done); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Todo not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get todo", http.StatusInternalServerError)
+		return
+	}
+	if body.Title != nil {
+		title = strings.TrimSpace(*body.Title)
+		if title == "" {
+			http.Error(w, "Title cannot be empty", http.StatusBadRequest)
+			return
+		}
+	}
+	if body.Done != nil {
+		done = *body.Done
+	}
+	_, err := h.DB.Exec("UPDATE todos SET title = ?, done = ? WHERE id = ?", title, done, id)
+	if err != nil {
+		http.Error(w, "Failed to update todo", http.StatusInternalServerError)
+		return
+	}
+	todo := Todo{ID: id, Title: title, Done: done}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(todo)
+}
+
+// DeleteTodo godoc
+// @Summary Delete todo
+// @Description delete todo by id
+// @Tags todos
+// @Param id path int true "Todo ID"
+// @Success 204 "No content"
+// @Failure 404 "Todo not found"
+// @Router /api/todos/{id} [delete]
+func (h *Handler) DeleteTodo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id, ok := parseTodoID(r.URL.Path, "/api/todos/")
+	if !ok {
+		http.Error(w, "Invalid todo id", http.StatusBadRequest)
+		return
+	}
+	res, err := h.DB.Exec("DELETE FROM todos WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, "Failed to delete todo", http.StatusInternalServerError)
+		return
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		http.Error(w, "Todo not found", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// TodosByID маршрутизирует PATCH и DELETE для /api/todos/{id}.
+func (h *Handler) TodosByID(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPatch, http.MethodPut:
+		h.UpdateTodo(w, r)
+	case http.MethodDelete:
+		h.DeleteTodo(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }

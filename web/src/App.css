@@ -56,12 +56,29 @@
 }
 
 .todo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.6rem 0.75rem;
   border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
-.todo-item-done {
+.todo-item-status {
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.todo-item--done .todo-item-status {
+  color: var(--accent);
+}
+
+.todo-item-title {
+  flex: 1;
+}
+
+.todo-item--done .todo-item-title {
   text-decoration: line-through;
   color: var(--text);
 }
