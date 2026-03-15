@@ -4,8 +4,11 @@ import (
 	"log"
 	"net/http"
 
+	_ "todo-go-app/docs" // for swagger docs
 	"todo-go-app/internal/handlers"
 	"todo-go-app/internal/storage"
+
+	httpSwagger "github.com/swaggo/http-swagger" // for swagger UI
 )
 
 func main() {
@@ -21,8 +24,8 @@ func main() {
 
 	http.HandleFunc("/api/todos", h.GetTodos)
 	http.HandleFunc("/api/create", h.CreateTodo)
-
-	http.Handle("/", http.FileServer(http.Dir("./web")))
+	http.Handle("/swagger/", httpSwagger.WrapHandler)
+	http.Handle("/", http.FileServer(http.Dir("./frontend")))
 
 	log.Println("Server started on :8080")
 
