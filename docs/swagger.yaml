@@ -8,6 +8,13 @@ definitions:
       title:
         type: string
     type: object
+  handlers.TodoUpdate:
+    properties:
+      title:
+        type: string
+      done:
+        type: boolean
+    type: object
 info:
   contact: {}
 paths:
@@ -46,6 +53,51 @@ paths:
               $ref: '#/definitions/handlers.Todo'
             type: array
       summary: Get all todos
+      tags:
+      - todos
+  /api/todos/{id}:
+    patch:
+      description: Update todo by id (title and/or done). Use for edit or complete/undo.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - type: integer
+        description: Todo ID
+        name: id
+        in: path
+        required: true
+      - description: Fields to update (title and/or done)
+        name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.TodoUpdate'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Todo'
+        "404":
+          description: Todo not found
+      summary: Update todo
+      tags:
+      - todos
+    delete:
+      description: Delete todo by id
+      parameters:
+      - type: integer
+        description: Todo ID
+        name: id
+        in: path
+        required: true
+      responses:
+        "204":
+          description: No content
+        "404":
+          description: Todo not found
+      summary: Delete todo
       tags:
       - todos
 swagger: "2.0"

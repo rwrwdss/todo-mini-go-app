@@ -9,9 +9,11 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const loadTodos = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const loadTodos = useCallback(async (background = false) => {
+    if (!background) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const data = await getTodos()
       setTodos(Array.isArray(data) ? data : [])
@@ -27,8 +29,13 @@ export default function App() {
   }, [loadTodos])
 
   async function handleAdded(title) {
-    await createTodo(title)
-    await loadTodos()
+    setError(null)
+    try {
+      await createTodo(title)
+    } catch (e) {
+      setError(e.message || 'Не удалось создать задачу')
+    }
+    await loadTodos(true)
   }
 
   return (

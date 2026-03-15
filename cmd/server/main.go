@@ -38,6 +38,7 @@ func main() {
 	}
 
 	http.HandleFunc("/api/todos", h.GetTodos)
+	http.HandleFunc("/api/todos/", h.TodosByID)
 	http.HandleFunc("/api/create", h.CreateTodo)
 	http.Handle("/swagger/", httpSwagger.WrapHandler)
 

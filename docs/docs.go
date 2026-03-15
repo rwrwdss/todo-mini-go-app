@@ -71,6 +71,74 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/todos/{id}": {
+            "patch": {
+                "description": "Update todo by id (title and/or done). Use for edit or complete/undo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "todos"
+                ],
+                "summary": "Update todo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Todo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update (title and/or done)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TodoUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Todo"
+                        }
+                    },
+                    "404": {
+                        "description": "Todo not found"
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete todo by id",
+                "tags": [
+                    "todos"
+                ],
+                "summary": "Delete todo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Todo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "description": "Todo not found"
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -85,6 +153,17 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.TodoUpdate": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                },
+                "done": {
+                    "type": "boolean"
                 }
             }
         }

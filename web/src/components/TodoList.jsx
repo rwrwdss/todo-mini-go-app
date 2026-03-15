@@ -11,8 +11,11 @@ export default function TodoList({ todos, loading, error }) {
   return (
     <ul className="todo-list" aria-label="Список задач">
       {todos.map((t) => (
-        <li key={t.id} className="todo-item">
-          <span className={t.done ? 'todo-item-done' : ''}>{t.title}</span>
+        <li key={t.id} className={`todo-item ${t.done ? 'todo-item--done' : ''}`}>
+          <span className="todo-item-status" aria-hidden>
+            {t.done ? '✓' : '○'}
+          </span>
+          <span className="todo-item-title">{t.title}</span>
         </li>
       ))}
     </ul>

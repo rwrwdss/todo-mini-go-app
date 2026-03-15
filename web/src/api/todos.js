@@ -9,7 +9,7 @@ async function handleResponse(res) {
 }
 
 export async function getTodos() {
-  const res = await fetch(`${API_BASE}/todos`)
+  const res = await fetch(`${API_BASE}/todos`, { cache: 'no-store' })
   return handleResponse(res)
 }
 
