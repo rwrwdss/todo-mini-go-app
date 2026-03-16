@@ -15,18 +15,23 @@ coverage.out
 *.prof
 *.cpuprofile
 *.memprofile
+/tmp/
+/air/
 
-# SQLite DB (local data)
+# SQLite
 *.db
-todos.db
+*.db-journal
+*.db-wal
+*.db-shm
 
-# Frontend (React/Vite)
+# React / Vite (web)
 web/node_modules/
 web/dist/
 web/dist-ssr/
 *.local
 .cache/
 .parcel-cache/
+web/.vite/
 
 # Logs
 *.log
