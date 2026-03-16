@@ -20,6 +20,64 @@ export function buildTree(todos) {
   return roots
 }
 
+const PRIORITY_ORDER = ['high', 'med', 'low', 'none']
+
+function normalizePriority(p) {
+  const s = (p || 'none').toLowerCase()
+  return s === 'medium' ? 'med' : s
+}
+
+/**
+ * Groups root nodes by tag. Returns array of { tag: string, nodes: Node[] }.
+ * Tagged groups first (alphabetically), then group with empty tag last (for "Без тега").
+ * Skips empty groups.
+ */
+export function groupRootsByTag(roots) {
+  if (!Array.isArray(roots) || !roots.length) return []
+  const byTag = new Map()
+  for (const node of roots) {
+    const t = (node.tag || '').trim()
+    const key = t === '' ? '_none' : t
+    if (!byTag.has(key)) byTag.set(key, [])
+    byTag.get(key).push(node)
+  }
+  const result = []
+  const tagged = [...byTag.entries()].filter(([k]) => k !== '_none').sort((a, b) => a[0].localeCompare(b[0]))
+  for (const [key, nodes] of tagged) {
+    result.push({ tag: key, nodes })
+  }
+  if (byTag.has('_none')) {
+    result.push({ tag: '', nodes: byTag.get('_none') })
+  }
+  return result
+}
+
+/**
+ * Groups root nodes by priority. Returns array of { priority, nodes } in order: high, med, low, none.
+ * Skips empty groups.
+ */
+export function groupRootsByPriority(roots) {
+  if (!Array.isArray(roots) || !roots.length) return []
+  const groups = { high: [], med: [], low: [], none: [] }
+  for (const node of roots) {
+    const key = normalizePriority(node.priority)
+    if (groups[key]) groups[key].push(node)
+    else groups.none.push(node)
+  }
+  return PRIORITY_ORDER.filter((p) => groups[p].length > 0).map((priority) => ({
+    priority,
+    nodes: groups[priority],
+  }))
+}
+
+/**
+ * Returns total count of descendants of a tree node (children + their descendants).
+ */
+export function countDescendants(node) {
+  if (!node || !Array.isArray(node.children) || node.children.length === 0) return 0
+  return node.children.length + node.children.reduce((sum, c) => sum + countDescendants(c), 0)
+}
+
 /**
  * Position horizontal connector lines between sibling nodes.
  * Call after tree is rendered (useEffect + ref to tree root).

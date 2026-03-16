@@ -71,6 +71,35 @@ header {
 .canvas { padding: 82px 48px 60px; min-height: 100vh; }
 .tree-root { display: flex; flex-direction: column; gap: 56px; }
 
+.priority-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--gap-x);
+  flex-wrap: wrap;
+}
+
+.tag-group {
+  position: relative;
+  padding-left: 20px;
+  border-left: 2px solid var(--line);
+}
+
+.tag-group-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 12px;
+}
+
+.tag-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
 /* ── TREE NODE ──────────────────────────────────────── */
 .node-wrap {
   display: flex;
@@ -122,6 +151,7 @@ header {
   background: var(--line);
 }
 .tree-root > .node-wrap::before { display: none; }
+.priority-row .node-wrap::before { display: none; }
 
 /* ── TASK CARD ─────────────────────────────────────── */
 .task-card {
@@ -260,6 +290,7 @@ header {
   padding: 9px 11px; outline: none; transition: border-color .15s; appearance: none;
 }
 .fi:focus, .fta:focus, .fsel:focus { border-color: var(--pink); }
+.tag-combo .fi--tag:focus { border-left-width: 3px; border-left-color: var(--pink); }
 .fta { min-height: 72px; resize: vertical; line-height: 1.5; }
 .fsel {
   cursor: pointer;
@@ -282,6 +313,22 @@ header {
   padding: 9px 22px; cursor: pointer; transition: background .15s, box-shadow .15s;
 }
 .btn-save:hover { background: var(--pink-dim); box-shadow: 0 0 14px var(--pink-glow); }
+
+/* ── CONFIRM DELETE MODAL ──────────────────────────── */
+.confirm-delete-modal .confirm-delete-msg {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text2);
+  margin-bottom: 0;
+}
+.btn-danger {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .07em;
+  text-transform: uppercase; background: var(--pink);
+  border: 1px solid var(--pink); color: #fff;
+  padding: 9px 22px; cursor: pointer; transition: background .15s, box-shadow .15s;
+}
+.btn-danger:hover { background: var(--pink-dim); box-shadow: 0 0 14px var(--pink-glow); }
 
 /* ── EMPTY ─────────────────────────────────────────── */
 .empty {
