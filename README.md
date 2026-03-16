@@ -36,6 +36,8 @@ go run cmd/server/main.go
 
 Теперь можно создавать задачи прямо из браузера или через Swagger UI.
 
+**Режим разработки фронтенда (React + Vite):** запусти бэкенд в одном терминале (`go run cmd/server/main.go`), в другом — `cd web && npm run dev`. Фронтенд будет на http://localhost:5173 с прокси к API на :8080. Для продакшена: `cd web && npm run build` — Go затем раздаёт собранное из `web/dist`.
+
 ---
 
 ## Как это устроено
@@ -43,7 +45,7 @@ go run cmd/server/main.go
 - Go backend с REST API
 - SQLite для хранения задач
 - Swagger для документации API
-- Минимальный фронтенд на HTML/CSS/JS
+- Фронтенд: React + Vite (папка `web/`), в продакшене раздаётся из `web/dist`
 
 ---
 

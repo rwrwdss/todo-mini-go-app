@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tasks</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #1a1a1f;
+  --bg2:       #212128;
+  --surface:   #26262e;
+  --surface2:  #2e2e38;
+  --border:    #38383f;
+  --border2:   #44444d;
+
+  --pink:      #e8508a;
+  --pink-dim:  #c03a70;
+  --pink-glow: rgba(232,80,138,.18);
+
+  --text:      #f0eef5;
+  --text2:     #9994a8;
+  --text3:     #5c5869;
+
+  --line:      #38383f;
+  --line-h:    28px;   /* vertical gap above children row */
+
+  --node-w:    290px;
+  --gap-x:     32px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: auto;
+}
+
+/* ── HEADER ─────────────────────────────────────────── */
+header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 36px;
+}
+.logo {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px; font-weight: 500; letter-spacing: .04em;
+  color: var(--text);
+}
+.logo span { color: var(--pink); }
+
+.hdr-right { display: flex; align-items: center; gap: 20px; }
+.task-count {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--text3); letter-spacing: .06em;
+}
+.add-root-btn {
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  background: var(--pink); color: #fff;
+  border: none; padding: 8px 18px; cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.add-root-btn:hover {
+  background: var(--pink-dim);
+  box-shadow: 0 0 18px var(--pink-glow);
+}
+
+/* ── CANVAS ─────────────────────────────────────────── */
+.canvas { padding: 82px 48px 60px; min-height: 100vh; }
+.tree-root { display: flex; flex-direction: column; gap: 56px; }
+
+/* ── TREE NODE ──────────────────────────────────────── */
+
+/*
+  Layout per node:
+    .node-wrap
+      .task-card          ← the card itself
+      .children-wrap      ← optional, if has children
+        .h-line           ← horizontal bar connecting children tops
+        .children-row     ← flex row of child .node-wrap
+*/
+
+.node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* vertical stem going DOWN from card to h-line */
+.node-wrap.has-children > .task-card::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: -28px;
+  transform: translateX(-50%);
+  width: 1px; height: 28px;
+  background: var(--line);
+}
+
+/* ── CHILDREN WRAPPER ───────────────────────────────── */
+.children-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 0; /* the stem above covers 28px */
+  padding-top: 28px;
+  position: relative;
+}
+
+/* h-line: absolute bar across children tops */
+.h-line {
+  position: absolute;
+  top: 28px; /* = line-h, aligns with where stems start */
+  height: 1px;
+  background: var(--line);
+  /* left/width set by JS */
+}
+
+.children-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--gap-x);
+  position: relative;
+}
+
+/* vertical stem going UP into each child */
+.node-wrap::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: -28px;
+  transform: translateX(-50%);
+  width: 1px; height: 28px;
+  background: var(--line);
+}
+/* root nodes have no parent stem */
+.tree-root > .node-wrap::before { display: none; }
+
+/* ── TASK CARD ─────────────────────────────────────── */
+.task-card {
+  width: var(--node-w);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px 18px 14px;
+  position: relative;
+  cursor: default;
+  transition: border-color .2s, box-shadow .2s;
+  flex-shrink: 0;
+}
+.task-card:hover {
+  border-color: var(--border2);
+  box-shadow: 0 0 0 1px var(--border2);
+}
+.task-card.done { opacity: .55; }
+.task-card.done .task-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--text3);
+}
+
+/* pink top accent for root cards */
+.root-card { border-top: 2px solid var(--pink); }
+.root-card:hover { box-shadow: 0 0 28px var(--pink-glow), 0 0 0 1px var(--border2); }
+
+/* priority left stripe */
+.task-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: transparent; transition: background .2s;
+}
+.p-high::before { background: #e05353; }
+.p-med::before  { background: #d4941a; }
+.p-low::before  { background: #3fa97a; }
+
+.task-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 8px; margin-bottom: 8px;
+}
+.task-left { display: flex; align-items: flex-start; gap: 9px; flex: 1; min-width: 0; }
+
+.chk {
+  width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px;
+  border: 1.5px solid var(--border2); background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+.chk:hover { border-color: var(--pink); }
+.chk.checked { background: var(--pink); border-color: var(--pink); }
+.chk.checked::after {
+  content: ''; display: block;
+  width: 7px; height: 4px;
+  border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.task-title {
+  font-size: 13px; font-weight: 500; line-height: 1.45;
+  color: var(--text); word-break: break-word; flex: 1;
+  letter-spacing: -.01em;
+}
+
+.task-actions {
+  display: flex; gap: 3px;
+  opacity: 0; transition: opacity .15s; flex-shrink: 0;
+}
+.task-card:hover .task-actions { opacity: 1; }
+
+.tbtn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--border); background: var(--bg2);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text2); transition: background .12s, border-color .12s, color .12s;
+}
+.tbtn:hover { border-color: var(--pink); color: var(--pink); background: var(--surface2); }
+.tbtn.del:hover { background: #6b1b2a; border-color: #e05353; color: #e05353; }
+
+.task-desc {
+  font-size: 11.5px; color: var(--text2); line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.task-footer {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.tag {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text3); background: var(--bg2);
+  border: 1px solid var(--border); padding: 2px 6px;
+}
+.tag.pink { color: var(--pink); border-color: var(--pink-dim); background: var(--pink-glow); }
+
+.add-child-btn {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text3);
+  background: transparent; border: 1px dashed var(--border);
+  padding: 3px 8px; cursor: pointer; white-space: nowrap;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.add-child-btn:hover {
+  color: var(--pink); border-color: var(--pink-dim);
+  border-style: solid; background: var(--pink-glow);
+}
+
+/* ── MODAL ─────────────────────────────────────────── */
+.modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(10,10,14,.65); backdrop-filter: blur(3px);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.modal-bg.open { display: flex; }
+
+.modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  padding: 32px 36px; width: 460px; max-width: 95vw;
+  animation: mu .2s ease;
+}
+@keyframes mu { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+
+.modal-ttl {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--pink); margin-bottom: 24px;
+}
+
+.fg { margin-bottom: 16px; }
+.fl {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text3); display: block; margin-bottom: 5px;
+}
+.fi, .fta, .fsel {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px;
+  padding: 9px 11px; outline: none; transition: border-color .15s; appearance: none;
+}
+.fi:focus, .fta:focus, .fsel:focus { border-color: var(--pink); }
+.fta { min-height: 72px; resize: vertical; line-height: 1.5; }
+.fsel {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c5869' stroke-width='1.4' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center; padding-right: 28px;
+}
+
+.modal-acts { display: flex; gap: 8px; margin-top: 24px; justify-content: flex-end; }
+.btn-cancel {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .07em;
+  text-transform: uppercase; background: transparent;
+  border: 1px solid var(--border); color: var(--text2);
+  padding: 9px 18px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.btn-cancel:hover { border-color: var(--text2); color: var(--text); }
+.btn-save {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .07em;
+  text-transform: uppercase; background: var(--pink);
+  border: 1px solid var(--pink); color: #fff;
+  padding: 9px 22px; cursor: pointer; transition: background .15s, box-shadow .15s;
+}
+.btn-save:hover { background: var(--pink-dim); box-shadow: 0 0 14px var(--pink-glow); }
+
+/* ── EMPTY ─────────────────────────────────────────── */
+.empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 60vh; gap: 14px;
+  color: var(--text3); text-align: center;
+}
+.empty-dots {
+  display: grid; grid-template-columns: repeat(5, 28px);
+  grid-template-rows: repeat(3, 28px); gap: 6px; margin-bottom: 8px;
+}
+.empty-dot { border: 1px solid var(--border); background: var(--surface); }
+.empty-dot:nth-child(3n+1) { opacity: .4; }
+.empty p { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .06em; }
+
+/* ── STATUS BAR ────────────────────────────────────── */
+.statusbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 34px; background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 36px; gap: 24px; z-index: 50;
+}
+.stat {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--text3);
+}
+.stat span { color: var(--pink); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">task<span>.</span>grid</div>
+  <div class="hdr-right">
+    <div class="task-count" id="taskCount">0 tasks</div>
+    <button class="add-root-btn" onclick="openModal(null,null)">+ New task</button>
+  </div>
+</header>
+
+<div class="canvas">
+  <div id="treeRoot" class="tree-root"></div>
+</div>
+
+<div class="statusbar">
+  <div class="stat">Total <span id="sTotal">0</span></div>
+  <div class="stat">Done <span id="sDone">0</span></div>
+  <div class="stat">Pending <span id="sPend">0</span></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg" onclick="bgClick(event)">
+  <div class="modal">
+    <div class="modal-ttl" id="mTitle">New task</div>
+    <div class="fg"><label class="fl">Title</label><input class="fi" id="iTitle" placeholder="Task name..." autocomplete="off"></div>
+    <div class="fg"><label class="fl">Description</label><textarea class="fta" id="iDesc" placeholder="Optional details..."></textarea></div>
+    <div class="fg"><label class="fl">Priority</label>
+      <select class="fsel" id="iPrio">
+        <option value="none">None</option>
+        <option value="low">Low</option>
+        <option value="med">Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Tag</label><input class="fi" id="iTag" placeholder="design, dev, research..."></div>
+    <div class="modal-acts">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveTask()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── DATA ── */
+let tasks = [
+  { id:'r1',   title:'Product Redesign',   desc:'Full overhaul of the main product interface', priority:'high', tag:'design',    done:false, parentId:null },
+  { id:'r1a',  title:'User Research',      desc:'Conduct interviews and surveys',               priority:'med',  tag:'research',  done:true,  parentId:'r1' },
+  { id:'r1b',  title:'Wireframes',         desc:'Low-fidelity sketches for all screens',        priority:'med',  tag:'design',    done:false, parentId:'r1' },
+  { id:'r1b1', title:'Mobile screens',     desc:'',                                             priority:'low',  tag:'',          done:false, parentId:'r1b'},
+  { id:'r1b2', title:'Desktop screens',    desc:'',                                             priority:'low',  tag:'',          done:false, parentId:'r1b'},
+  { id:'r1c',  title:'Design system',      desc:'Tokens, components, documentation',            priority:'high', tag:'design',    done:false, parentId:'r1' },
+  { id:'r2',   title:'Backend Refactor',   desc:'Migrate to new architecture',                  priority:'high', tag:'dev',       done:false, parentId:null },
+  { id:'r2a',  title:'API redesign',       desc:'RESTful endpoints cleanup',                    priority:'med',  tag:'dev',       done:false, parentId:'r2' },
+  { id:'r2b',  title:'DB migration',       desc:'Move from v1 to v2 schema',                   priority:'high', tag:'infra',     done:false, parentId:'r2' },
+  { id:'r3',   title:'Marketing launch',   desc:'Q2 campaign preparation',                      priority:'med',  tag:'marketing', done:false, parentId:null },
+];
+let uid = 200;
+let ms = { editId:null, parentId:null };
+
+/* ── HELPERS ── */
+const byId = id => tasks.find(t => t.id === id);
+const children = pid => tasks.filter(t => t.parentId === pid);
+const roots = () => tasks.filter(t => !t.parentId);
+function descendants(id) {
+  let ids = [id];
+  children(id).forEach(c => ids = ids.concat(descendants(c.id)));
+  return ids;
+}
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── BUILD CARD HTML ── */
+function makeCard(t, isRoot) {
+  const pc = t.priority !== 'none' ? `p-${t.priority}` : '';
+  const done = t.done ? 'done' : '';
+  const rc = isRoot ? 'root-card' : '';
+  return `
+<div class="task-card ${pc} ${done} ${rc}" data-id="${t.id}">
+  <div class="task-header">
+    <div class="task-left">
+      <div class="chk ${t.done?'checked':''}" onclick="toggleDone('${t.id}')"></div>
+      <div class="task-title">${esc(t.title)}</div>
+    </div>
+    <div class="task-actions">
+      <button class="tbtn" title="Edit" onclick="openModal('${t.id}',null)">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 10l2-.5 6.5-6.5-2-2L1.5 8 1 10z"/></svg>
+      </button>
+      <button class="tbtn del" title="Delete" onclick="deleteTask('${t.id}')">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 1.5l8 8M9.5 1.5l-8 8"/></svg>
+      </button>
+    </div>
+  </div>
+  ${t.desc ? `<div class="task-desc">${esc(t.desc)}</div>` : ''}
+  <div class="task-footer">
+    <div class="task-meta">
+      ${t.tag ? `<span class="tag pink">${esc(t.tag)}</span>` : ''}
+      ${t.priority!=='none' ? `<span class="tag">${t.priority}</span>` : ''}
+    </div>
+    <button class="add-child-btn" onclick="openModal(null,'${t.id}')">+ sub</button>
+  </div>
+</div>`;
+}
+
+/* ── BUILD NODE WRAP ── */
+function buildNode(t, isRoot) {
+  const kids = children(t.id);
+  const wrap = document.createElement('div');
+  wrap.className = 'node-wrap' + (kids.length ? ' has-children' : '');
+  wrap.dataset.id = t.id;
+  wrap.innerHTML = makeCard(t, isRoot);
+
+  if (kids.length) {
+    const cw = document.createElement('div');
+    cw.className = 'children-wrap';
+
+    // h-line placeholder (width/left set after layout)
+    const hl = document.createElement('div');
+    hl.className = 'h-line';
+    cw.appendChild(hl);
+
+    const row = document.createElement('div');
+    row.className = 'children-row';
+    kids.forEach(k => row.appendChild(buildNode(k, false)));
+    cw.appendChild(row);
+
+    wrap.appendChild(cw);
+  }
+
+  return wrap;
+}
+
+/* ── POSITION H-LINES ── */
+function positionHLines(container) {
+  container.querySelectorAll('.children-wrap').forEach(cw => {
+    const row = cw.querySelector('.children-row');
+    const hl  = cw.querySelector('.h-line');
+    const nodes = Array.from(row.children); // .node-wrap children
+    if (nodes.length < 1) return;
+
+    const rowRect = row.getBoundingClientRect();
+
+    if (nodes.length === 1) {
+      // single child: just a vertical line, no horizontal bar needed
+      hl.style.display = 'none';
+      return;
+    }
+
+    hl.style.display = '';
+    const firstCard = nodes[0].querySelector(':scope > .task-card');
+    const lastCard  = nodes[nodes.length-1].querySelector(':scope > .task-card');
+    const fr = firstCard.getBoundingClientRect();
+    const lr = lastCard.getBoundingClientRect();
+
+    const left  = (fr.left + fr.right) / 2 - rowRect.left;
+    const right = (lr.left + lr.right) / 2 - rowRect.left;
+
+    hl.style.left  = left  + 'px';
+    hl.style.width = (right - left) + 'px';
+  });
+}
+
+/* ── RENDER ── */
+function render() {
+  const root = document.getElementById('treeRoot');
+  root.innerHTML = '';
+  const rs = roots();
+
+  if (!rs.length) {
+    root.innerHTML = `<div class="empty">
+      <div class="empty-dots">${Array(15).fill('<div class="empty-dot"></div>').join('')}</div>
+      <p>No tasks yet</p>
+    </div>`;
+  } else {
+    rs.forEach(t => root.appendChild(buildNode(t, true)));
+  }
+
+  // Wait for paint then fix h-lines
+  requestAnimationFrame(() => {
+    positionHLines(root);
+    // Re-run once more after images/fonts settle
+    setTimeout(() => positionHLines(root), 120);
+  });
+
+  // Stats
+  const total = tasks.length;
+  const done  = tasks.filter(t => t.done).length;
+  document.getElementById('taskCount').textContent = `${total} task${total!==1?'s':''}`;
+  document.getElementById('sTotal').textContent = total;
+  document.getElementById('sDone').textContent  = done;
+  document.getElementById('sPend').textContent  = total - done;
+}
+
+/* ── ACTIONS ── */
+function toggleDone(id) {
+  const t = byId(id); if(t) t.done = !t.done; render();
+}
+function deleteTask(id) {
+  const del = descendants(id);
+  tasks = tasks.filter(t => !del.includes(t.id));
+  render();
+}
+
+/* ── MODAL ── */
+function openModal(editId, parentId) {
+  ms = { editId, parentId };
+  document.getElementById('mTitle').textContent = editId ? 'Edit task' : (parentId ? 'New subtask' : 'New task');
+  if (editId) {
+    const t = byId(editId);
+    document.getElementById('iTitle').value = t.title;
+    document.getElementById('iDesc').value  = t.desc;
+    document.getElementById('iPrio').value  = t.priority;
+    document.getElementById('iTag').value   = t.tag;
+  } else {
+    document.getElementById('iTitle').value = '';
+    document.getElementById('iDesc').value  = '';
+    document.getElementById('iPrio').value  = 'none';
+    document.getElementById('iTag').value   = '';
+  }
+  document.getElementById('modalBg').classList.add('open');
+  setTimeout(() => document.getElementById('iTitle').focus(), 50);
+}
+function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
+function bgClick(e)   { if (e.target === document.getElementById('modalBg')) closeModal(); }
+function saveTask() {
+  const title = document.getElementById('iTitle').value.trim();
+  if (!title) {
+    const fi = document.getElementById('iTitle');
+    fi.style.borderColor = '#e05353';
+    setTimeout(() => fi.style.borderColor = '', 1200);
+    return;
+  }
+  const desc = document.getElementById('iDesc').value.trim();
+  const prio = document.getElementById('iPrio').value;
+  const tag  = document.getElementById('iTag').value.trim();
+
+  if (ms.editId) {
+    const t = byId(ms.editId);
+    Object.assign(t, { title, desc, priority: prio, tag });
+  } else {
+    tasks.push({ id: 't'+(++uid), title, desc, priority: prio, tag, done: false, parentId: ms.parentId });
+  }
+  closeModal(); render();
+}
+
+/* ── KEYS ── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && document.getElementById('modalBg').classList.contains('open')) saveTask();
+});
+
+/* ── INIT ── */
+render();
+
+/* Re-position on resize */
+window.addEventListener('resize', () => positionHLines(document.getElementById('treeRoot')));
+</script>
+</body>
+</html>

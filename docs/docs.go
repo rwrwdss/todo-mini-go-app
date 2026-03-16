@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/api/create": {
             "post": {
-                "description": "create new todo",
+                "description": "create new todo (title required; description, priority, tag, parent_id optional)",
                 "consumes": [
                     "application/json"
                 ],
@@ -51,7 +51,7 @@ const docTemplate = `{
         },
         "/api/todos": {
             "get": {
-                "description": "get list of todos",
+                "description": "get list of todos. Optional query parent_id to filter children of a todo.",
                 "produces": [
                     "application/json"
                 ],
@@ -59,6 +59,15 @@ const docTemplate = `{
                     "todos"
                 ],
                 "summary": "Get all todos",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter children of this todo id",
+                        "name": "parent_id",
+                        "in": "query",
+                        "required": false
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -71,20 +80,123 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/todos/{id}": {
+            "patch": {
+                "description": "Update todo by id (title, done, description, priority, tag, parent_id — all optional). Use for edit or complete/undo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "todos"
+                ],
+                "summary": "Update todo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Todo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update (title, done, description, priority, tag, parent_id — all optional)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TodoUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Todo"
+                        }
+                    },
+                    "404": {
+                        "description": "Todo not found"
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete todo by id (cascade: deletes all descendants first)",
+                "tags": [
+                    "todos"
+                ],
+                "summary": "Delete todo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Todo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "description": "Todo not found"
+                    }
+                }
+            }
         }
     },
     "definitions": {
         "handlers.Todo": {
             "type": "object",
             "properties": {
-                "done": {
-                    "type": "boolean"
-                },
                 "id": {
                     "type": "integer"
                 },
                 "title": {
                     "type": "string"
+                },
+                "done": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.TodoUpdate": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                },
+                "done": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "integer"
                 }
             }
         }

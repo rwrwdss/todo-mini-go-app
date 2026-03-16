@@ -1,13 +1,36 @@
 definitions:
   handlers.Todo:
+    type: object
     properties:
-      done:
-        type: boolean
       id:
         type: integer
       title:
         type: string
+      done:
+        type: boolean
+      description:
+        type: string
+      priority:
+        type: string
+      tag:
+        type: string
+      parent_id:
+        type: integer
+  handlers.TodoUpdate:
     type: object
+    properties:
+      title:
+        type: string
+      done:
+        type: boolean
+      description:
+        type: string
+      priority:
+        type: string
+      tag:
+        type: string
+      parent_id:
+        type: integer
 info:
   contact: {}
 paths:
@@ -15,7 +38,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: create new todo
+      description: create new todo (title required; description, priority, tag, parent_id optional)
       parameters:
       - description: Todo object
         in: body
@@ -35,7 +58,13 @@ paths:
       - todos
   /api/todos:
     get:
-      description: get list of todos
+      description: get list of todos. Optional query parent_id to filter children of a todo.
+      parameters:
+      - type: integer
+        description: Filter children of this todo id
+        name: parent_id
+        in: query
+        required: false
       produces:
       - application/json
       responses:
@@ -46,6 +75,51 @@ paths:
               $ref: '#/definitions/handlers.Todo'
             type: array
       summary: Get all todos
+      tags:
+      - todos
+  /api/todos/{id}:
+    patch:
+      description: Update todo by id (title, done, description, priority, tag, parent_id — all optional). Use for edit or complete/undo.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - type: integer
+        description: Todo ID
+        name: id
+        in: path
+        required: true
+      - description: Fields to update (title, done, description, priority, tag, parent_id — all optional)
+        name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.TodoUpdate'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Todo'
+        "404":
+          description: Todo not found
+      summary: Update todo
+      tags:
+      - todos
+    delete:
+      description: Delete todo by id (cascade deletes all descendants first)
+      parameters:
+      - type: integer
+        description: Todo ID
+        name: id
+        in: path
+        required: true
+      responses:
+        "204":
+          description: No content
+        "404":
+          description: Todo not found
+      summary: Delete todo
       tags:
       - todos
 swagger: "2.0"
