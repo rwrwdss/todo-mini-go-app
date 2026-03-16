@@ -13,16 +13,21 @@ type Handler struct {
 }
 
 type Todo struct {
-	ID    int    `json:"id"`
-	Title string `json:"title"`
-	Done  bool   `json:"done"`
+	ID          int     `json:"id"`
+	Title       string  `json:"title"`
+	Done        bool    `json:"done"`
+	Description string  `json:"description,omitempty"`
+	Priority    string  `json:"priority,omitempty"`
+	Tag         string  `json:"tag,omitempty"`
+	ParentID    *int    `json:"parent_id,omitempty"`
 }
 
 // GetTodos godoc
 // @Summary Get all todos
-// @Description get list of todos
+// @Description get list of todos. Optional query parent_id to filter by parent.
 // @Tags todos
 // @Produce json
+// @Param parent_id query int false "Filter children of this todo id"
 // @Success 200 {array} Todo
 // @Router /api/todos [get]
 func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +35,18 @@ func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	rows, err := h.DB.Query("SELECT id, title, done FROM todos")
+	var rows *sql.Rows
+	var err error
+	if parentID := r.URL.Query().Get("parent_id"); parentID != "" {
+		pid, errAtoi := strconv.Atoi(parentID)
+		if errAtoi != nil {
+			http.Error(w, "Invalid parent_id", http.StatusBadRequest)
+			return
+		}
+		rows, err = h.DB.Query("SELECT id, title, done, description, priority, tag, parent_id FROM todos WHERE parent_id = ?", pid)
+	} else {
+		rows, err = h.DB.Query("SELECT id, title, done, description, priority, tag, parent_id FROM todos")
+	}
 	if err != nil {
 		http.Error(w, "Failed to query todos", http.StatusInternalServerError)
 		return
@@ -40,9 +56,24 @@ func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 	var todos []Todo
 	for rows.Next() {
 		var todo Todo
-		if err := rows.Scan(&todo.ID, &todo.Title, &todo.Done); err != nil {
+		var desc, priority, tag sql.NullString
+		var parentID sql.NullInt64
+		if err := rows.Scan(&todo.ID, &todo.Title, &todo.Done, &desc, &priority, &tag, &parentID); err != nil {
 			http.Error(w, "Failed to scan todo", http.StatusInternalServerError)
 			return
+		}
+		if desc.Valid {
+			todo.Description = desc.String
+		}
+		if priority.Valid {
+			todo.Priority = priority.String
+		}
+		if tag.Valid {
+			todo.Tag = tag.String
+		}
+		if parentID.Valid && parentID.Int64 > 0 {
+			p := int(parentID.Int64)
+			todo.ParentID = &p
 		}
 		todos = append(todos, todo)
 	}
@@ -57,7 +88,7 @@ func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 
 // CreateTodo godoc
 // @Summary Create todo
-// @Description create new todo
+// @Description create new todo (title required; description, priority, tag, parent_id optional)
 // @Tags todos
 // @Accept json
 // @Produce json
@@ -79,8 +110,14 @@ func (h *Handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Title is required", http.StatusBadRequest)
 		return
 	}
+	if todo.Priority == "" {
+		todo.Priority = "none"
+	}
 
-	result, err := h.DB.Exec("INSERT INTO todos (title, done) VALUES (?, ?)", todo.Title, todo.Done)
+	result, err := h.DB.Exec(
+		"INSERT INTO todos (title, done, description, priority, tag, parent_id) VALUES (?, ?, ?, ?, ?, ?)",
+		todo.Title, todo.Done, todo.Description, todo.Priority, todo.Tag, todo.ParentID,
+	)
 	if err != nil {
 		http.Error(w, "Failed to create todo", http.StatusInternalServerError)
 		return
@@ -133,16 +170,21 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Title *string `json:"title"`
-		Done  *bool   `json:"done"`
+		Title       *string `json:"title"`
+		Done        *bool   `json:"done"`
+		Description *string `json:"description"`
+		Priority    *string `json:"priority"`
+		Tag         *string `json:"tag"`
+		ParentID    *int    `json:"parent_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
-	var title string
+	var title, description, priority, tag string
 	var done bool
-	if err := h.DB.QueryRow("SELECT title, done FROM todos WHERE id = ?", id).Scan(&title, &done); err != nil {
+	var parentID sql.NullInt64
+	if err := h.DB.QueryRow("SELECT title, done, description, priority, tag, parent_id FROM todos WHERE id = ?", id).Scan(&title, &done, &description, &priority, &tag, &parentID); err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Todo not found", http.StatusNotFound)
 			return
@@ -160,19 +202,47 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 	if body.Done != nil {
 		done = *body.Done
 	}
-	_, err := h.DB.Exec("UPDATE todos SET title = ?, done = ? WHERE id = ?", title, done, id)
+	if body.Description != nil {
+		description = *body.Description
+	}
+	if body.Priority != nil {
+		priority = *body.Priority
+	}
+	if body.Tag != nil {
+		tag = *body.Tag
+	}
+	var parentIDVal interface{}
+	if body.ParentID != nil {
+		parentIDVal = *body.ParentID
+	} else if parentID.Valid {
+		parentIDVal = parentID.Int64
+	} else {
+		parentIDVal = nil
+	}
+	_, err := h.DB.Exec(
+		"UPDATE todos SET title = ?, done = ?, description = ?, priority = ?, tag = ?, parent_id = ? WHERE id = ?",
+		title, done, description, priority, tag, parentIDVal, id,
+	)
 	if err != nil {
 		http.Error(w, "Failed to update todo", http.StatusInternalServerError)
 		return
 	}
-	todo := Todo{ID: id, Title: title, Done: done}
+	todo := Todo{ID: id, Title: title, Done: done, Description: description, Priority: priority, Tag: tag}
+	if parentIDVal != nil {
+		if p, ok := parentIDVal.(int); ok {
+			todo.ParentID = &p
+		} else if p64, ok := parentIDVal.(int64); ok {
+			p := int(p64)
+			todo.ParentID = &p
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(todo)
 }
 
 // DeleteTodo godoc
 // @Summary Delete todo
-// @Description delete todo by id
+// @Description delete todo by id (cascade: deletes all descendants first)
 // @Tags todos
 // @Param id path int true "Todo ID"
 // @Success 204 "No content"
@@ -188,17 +258,45 @@ func (h *Handler) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid todo id", http.StatusBadRequest)
 		return
 	}
-	res, err := h.DB.Exec("DELETE FROM todos WHERE id = ?", id)
-	if err != nil {
+	if err := h.deleteTodoCascade(id); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Todo not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "Failed to delete todo", http.StatusInternalServerError)
 		return
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
-		http.Error(w, "Todo not found", http.StatusNotFound)
-		return
-	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deleteTodoCascade(id int) error {
+	rows, err := h.DB.Query("SELECT id FROM todos WHERE parent_id = ?", id)
+	if err != nil {
+		return err
+	}
+	var childIDs []int
+	for rows.Next() {
+		var cid int
+		if err := rows.Scan(&cid); err != nil {
+			rows.Close()
+			return err
+		}
+		childIDs = append(childIDs, cid)
+	}
+	rows.Close()
+	for _, cid := range childIDs {
+		if err := h.deleteTodoCascade(cid); err != nil {
+			return err
+		}
+	}
+	res, err := h.DB.Exec("DELETE FROM todos WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // TodosByID маршрутизирует PATCH и DELETE для /api/todos/{id}.
