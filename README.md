@@ -74,3 +74,4 @@ curl http://localhost:8080/api/todos
 - Сделать красивый frontend с React или Tailwind
 - Подключить Docker
 - Подключить брокер сообщений(по типу rabbitmq, kafka)
+  <img width="1470" height="833" alt="image" src="https://github.com/user-attachments/assets/a0248197-f54a-4800-ad06-69ca25bc4a07" />
