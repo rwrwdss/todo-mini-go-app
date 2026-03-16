@@ -12,6 +12,9 @@ server
 *.out
 coverage.html
 coverage.out
+*.prof
+*.cpuprofile
+*.memprofile
 
 # SQLite DB (local data)
 *.db
@@ -22,6 +25,8 @@ web/node_modules/
 web/dist/
 web/dist-ssr/
 *.local
+.cache/
+.parcel-cache/
 
 # Logs
 *.log
