@@ -174,7 +174,7 @@ export default function App() {
               const priorityRows = groupRootsByPriority(tagGroup.nodes)
               return (
                 <div key={tagGroup.tag || '_none'} className="tag-group" data-tag={tagGroup.tag || ''}>
-                  <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'Без тега'}</div>
+                  <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'No tag'}</div>
                   <div className="tag-group-body">
                     {priorityRows.map((group) => (
                       <div key={group.priority} className="priority-row">

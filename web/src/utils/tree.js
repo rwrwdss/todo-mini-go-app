@@ -29,7 +29,7 @@ function normalizePriority(p) {
 
 /**
  * Groups root nodes by tag. Returns array of { tag: string, nodes: Node[] }.
- * Tagged groups first (alphabetically), then group with empty tag last (for "Без тега").
+ * Tagged groups first (alphabetically), then group with empty tag last (for "No tag").
  * Skips empty groups.
  */
 export function groupRootsByTag(roots) {
