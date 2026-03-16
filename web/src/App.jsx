@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getTodos, createTodo, updateTodo, deleteTodo } from './api/todos'
-import { buildTree, positionHLines } from './utils/tree'
+import { buildTree, groupRootsByTag, groupRootsByPriority, positionHLines, countDescendants } from './utils/tree'
 import Header from './components/Header'
 import TreeNode from './components/TreeNode'
 import Modal from './components/Modal'
+import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import Empty from './components/Empty'
 import StatusBar from './components/StatusBar'
 import './index.css'
@@ -18,6 +19,7 @@ export default function App() {
     editTask: null,
     parentId: null,
   })
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, task: null })
   const treeRootRef = useRef(null)
 
   const loadTodos = useCallback(async (background = false) => {
@@ -55,7 +57,11 @@ export default function App() {
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setModal((m) => ({ ...m, open: false }))
+        if (deleteConfirm.open) {
+          setDeleteConfirm({ open: false, task: null })
+        } else {
+          setModal((m) => ({ ...m, open: false }))
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && modal.open) {
         e.preventDefault()
@@ -64,9 +70,11 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [modal.open])
+  }, [modal.open, deleteConfirm.open])
 
   const tree = buildTree(todos)
+  const tagGroups = groupRootsByTag(tree)
+  const existingTags = [...new Set(todos.map((t) => (t.tag || '').trim()).filter(Boolean))].sort()
   const total = todos.length
   const doneCount = todos.filter((t) => t.done).length
   const pendingCount = total - doneCount
@@ -111,7 +119,12 @@ export default function App() {
     }
   }
 
-  async function handleDelete(task) {
+  function isRoot(task) {
+    const pid = task.parent_id ?? null
+    return pid == null || pid === 0
+  }
+
+  async function performDelete(task) {
     setError(null)
     try {
       await deleteTodo(task.id)
@@ -119,6 +132,19 @@ export default function App() {
     } catch (e) {
       setError(e.message || 'Failed to delete')
     }
+  }
+
+  function handleDelete(task) {
+    if (isRoot(task)) {
+      setDeleteConfirm({ open: true, task })
+      return
+    }
+    performDelete(task)
+  }
+
+  function handleConfirmDelete(task) {
+    if (task) performDelete(task)
+    setDeleteConfirm({ open: false, task: null })
   }
 
   if (loading && todos.length === 0) {
@@ -141,20 +167,34 @@ export default function App() {
           <p className="todo-error" role="alert" style={{ color: '#e05353', marginBottom: 16 }}>{error}</p>
         ) : null}
         <div ref={treeRootRef} className="tree-root">
-          {tree.length === 0 ? (
+          {tagGroups.length === 0 ? (
             <Empty />
           ) : (
-            tree.map((node) => (
-              <TreeNode
-                key={node.id}
-                node={node}
-                isRoot
-                onToggleDone={handleToggleDone}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-                onAddSub={openAddSub}
-              />
-            ))
+            tagGroups.map((tagGroup) => {
+              const priorityRows = groupRootsByPriority(tagGroup.nodes)
+              return (
+                <div key={tagGroup.tag || '_none'} className="tag-group" data-tag={tagGroup.tag || ''}>
+                  <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'Без тега'}</div>
+                  <div className="tag-group-body">
+                    {priorityRows.map((group) => (
+                      <div key={group.priority} className="priority-row">
+                        {group.nodes.map((node) => (
+                          <TreeNode
+                            key={node.id}
+                            node={node}
+                            isRoot
+                            onToggleDone={handleToggleDone}
+                            onEdit={openEdit}
+                            onDelete={handleDelete}
+                            onAddSub={openAddSub}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })
           )}
         </div>
       </div>
@@ -164,8 +204,16 @@ export default function App() {
         mode={modal.mode}
         editTask={modal.editTask}
         parentId={modal.parentId}
+        existingTags={existingTags}
         onSave={handleSave}
         onClose={closeModal}
+      />
+      <ConfirmDeleteModal
+        open={deleteConfirm.open}
+        task={deleteConfirm.task}
+        descendantCount={deleteConfirm.task ? countDescendants(deleteConfirm.task) : 0}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteConfirm({ open: false, task: null })}
       />
     </>
   )
