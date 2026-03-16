@@ -15,9 +15,94 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/auth/login": {
+            "post": {
+                "description": "Returns JWT and user info. Use token in Authorization: Bearer \u003ctoken\u003e for /api/todos and /api/create.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login",
+                "parameters": [
+                    {
+                        "description": "email, password",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Email and password required"
+                    },
+                    "401": {
+                        "description": "Invalid email or password"
+                    }
+                }
+            }
+        },
+        "/api/auth/register": {
+            "post": {
+                "description": "Create account with email, password (min 8 chars), and optional name.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register new user",
+                "parameters": [
+                    {
+                        "description": "email, password, name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input"
+                    },
+                    "409": {
+                        "description": "Email already registered"
+                    }
+                }
+            }
+        },
         "/api/create": {
             "post": {
-                "description": "create new todo (title required; description, priority, tag, parent_id optional)",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "create new todo for the authenticated user (title required; description, priority, tag, parent_id optional)",
                 "consumes": [
                     "application/json"
                 ],
@@ -35,7 +120,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.Todo"
+                            "$ref": "#/definitions/internal_handlers.Todo"
                         }
                     }
                 ],
@@ -43,7 +128,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handlers.Todo"
+                            "$ref": "#/definitions/internal_handlers.Todo"
                         }
                     }
                 }
@@ -51,7 +136,12 @@ const docTemplate = `{
         },
         "/api/todos": {
             "get": {
-                "description": "get list of todos. Optional query parent_id to filter children of a todo.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "get list of todos for the authenticated user. Optional query parent_id to filter by parent.",
                 "produces": [
                     "application/json"
                 ],
@@ -64,8 +154,7 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Filter children of this todo id",
                         "name": "parent_id",
-                        "in": "query",
-                        "required": false
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -74,7 +163,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/handlers.Todo"
+                                "$ref": "#/definitions/internal_handlers.Todo"
                             }
                         }
                     }
@@ -82,50 +171,13 @@ const docTemplate = `{
             }
         },
         "/api/todos/{id}": {
-            "patch": {
-                "description": "Update todo by id (title, done, description, priority, tag, parent_id — all optional). Use for edit or complete/undo.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "todos"
-                ],
-                "summary": "Update todo",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Todo ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Fields to update (title, done, description, priority, tag, parent_id — all optional)",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.TodoUpdate"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.Todo"
-                        }
-                    },
-                    "404": {
-                        "description": "Todo not found"
-                    }
-                }
-            },
             "delete": {
-                "description": "Delete todo by id (cascade: deletes all descendants first)",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "delete todo by id (only own todos; cascade: deletes all descendants first)",
                 "tags": [
                     "todos"
                 ],
@@ -147,47 +199,107 @@ const docTemplate = `{
                         "description": "Todo not found"
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "update todo by id (only own todos). Use for edit and for complete/undo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "todos"
+                ],
+                "summary": "Update todo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Todo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update (title and/or done)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.Todo"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.Todo"
+                        }
+                    },
+                    "404": {
+                        "description": "Todo not found"
+                    }
+                }
             }
         }
     },
     "definitions": {
-        "handlers.Todo": {
+        "internal_handlers.AuthResponse": {
             "type": "object",
             "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "title": {
+                "token": {
                     "type": "string"
                 },
-                "done": {
-                    "type": "boolean"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "priority": {
-                    "type": "string"
-                },
-                "tag": {
-                    "type": "string"
-                },
-                "parent_id": {
-                    "type": "integer"
+                "user": {
+                    "$ref": "#/definitions/internal_handlers.UserResponse"
                 }
             }
         },
-        "handlers.TodoUpdate": {
+        "internal_handlers.LoginRequest": {
             "type": "object",
             "properties": {
-                "title": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.RegisterRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.Todo": {
+            "type": "object",
+            "properties": {
+                "description": {
                     "type": "string"
                 },
                 "done": {
                     "type": "boolean"
                 },
-                "description": {
-                    "type": "string"
+                "id": {
+                    "type": "integer"
+                },
+                "parent_id": {
+                    "type": "integer"
                 },
                 "priority": {
                     "type": "string"
@@ -195,22 +307,43 @@ const docTemplate = `{
                 "tag": {
                     "type": "string"
                 },
-                "parent_id": {
-                    "type": "integer"
+                "title": {
+                    "type": "string"
                 }
             }
+        },
+        "internal_handlers.UserResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
+	Version:          "1.0",
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Title:            "Task.grid API",
+	Description:      "API for tasks with JWT auth. Register or login at /api/auth/* to get a token; send it as Authorization: Bearer &lt;token&gt; for /api/todos and /api/create.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

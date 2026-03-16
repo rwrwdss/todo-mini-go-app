@@ -1,3 +1,9 @@
+// @title Task.grid API
+// @version 1.0
+// @description API for tasks with JWT auth. Register or login at /api/auth/* to get a token; send it as Authorization: Bearer &lt;token&gt; for /api/todos and /api/create.
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 package main
 
 import (
@@ -7,6 +13,7 @@ import (
 	"path/filepath"
 
 	_ "todo-go-app/docs" // for swagger docs
+	"todo-go-app/internal/auth"
 	"todo-go-app/internal/handlers"
 	"todo-go-app/internal/storage"
 
@@ -27,7 +34,7 @@ func spaHandler(dir string) http.Handler {
 }
 
 func main() {
-	db, err := storage.InitDB()
+	db, err := storage.InitPostgres()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,9 +44,11 @@ func main() {
 		DB: db,
 	}
 
-	http.HandleFunc("/api/todos", h.GetTodos)
-	http.HandleFunc("/api/todos/", h.TodosByID)
-	http.HandleFunc("/api/create", h.CreateTodo)
+	http.HandleFunc("/api/auth/register", h.Register)
+	http.HandleFunc("/api/auth/login", h.Login)
+	http.HandleFunc("/api/todos", auth.RequireAuth(h.GetTodos))
+	http.HandleFunc("/api/todos/", auth.RequireAuth(h.TodosByID))
+	http.HandleFunc("/api/create", auth.RequireAuth(h.CreateTodo))
 	http.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	webDist := "./web/dist"

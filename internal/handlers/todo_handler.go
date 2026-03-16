@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"todo-go-app/internal/auth"
 )
 
 type Handler struct {
@@ -24,15 +27,21 @@ type Todo struct {
 
 // GetTodos godoc
 // @Summary Get all todos
-// @Description get list of todos. Optional query parent_id to filter by parent.
+// @Description get list of todos for the authenticated user. Optional query parent_id to filter by parent.
 // @Tags todos
 // @Produce json
+// @Security BearerAuth
 // @Param parent_id query int false "Filter children of this todo id"
 // @Success 200 {array} Todo
 // @Router /api/todos [get]
 func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	var rows *sql.Rows
@@ -43,9 +52,9 @@ func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid parent_id", http.StatusBadRequest)
 			return
 		}
-		rows, err = h.DB.Query("SELECT id, title, done, description, priority, tag, parent_id FROM todos WHERE parent_id = ?", pid)
+		rows, err = h.DB.Query("SELECT id, title, done, description, priority, tag, parent_id FROM todos WHERE user_id = $1 AND parent_id = $2", userID, pid)
 	} else {
-		rows, err = h.DB.Query("SELECT id, title, done, description, priority, tag, parent_id FROM todos")
+		rows, err = h.DB.Query("SELECT id, title, done, description, priority, tag, parent_id FROM todos WHERE user_id = $1", userID)
 	}
 	if err != nil {
 		http.Error(w, "Failed to query todos", http.StatusInternalServerError)
@@ -88,16 +97,22 @@ func (h *Handler) GetTodos(w http.ResponseWriter, r *http.Request) {
 
 // CreateTodo godoc
 // @Summary Create todo
-// @Description create new todo (title required; description, priority, tag, parent_id optional)
+// @Description create new todo for the authenticated user (title required; description, priority, tag, parent_id optional)
 // @Tags todos
 // @Accept json
 // @Produce json
+// @Security BearerAuth
 // @Param todo body Todo true "Todo object"
 // @Success 200 {object} Todo
 // @Router /api/create [post]
 func (h *Handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	var todo Todo
@@ -114,22 +129,17 @@ func (h *Handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 		todo.Priority = "none"
 	}
 
-	result, err := h.DB.Exec(
-		"INSERT INTO todos (title, done, description, priority, tag, parent_id) VALUES (?, ?, ?, ?, ?, ?)",
-		todo.Title, todo.Done, todo.Description, todo.Priority, todo.Tag, todo.ParentID,
-	)
+	var id int
+	err := h.DB.QueryRow(
+		"INSERT INTO todos (user_id, title, done, description, priority, tag, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+		userID, todo.Title, todo.Done, todo.Description, todo.Priority, todo.Tag, todo.ParentID,
+	).Scan(&id)
 	if err != nil {
 		http.Error(w, "Failed to create todo", http.StatusInternalServerError)
 		return
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		http.Error(w, "Failed to retrieve last insert ID", http.StatusInternalServerError)
-		return
-	}
-
-	todo.ID = int(id)
+	todo.ID = id
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(todo)
 }
@@ -150,10 +160,11 @@ func parseTodoID(path, prefix string) (int, bool) {
 
 // UpdateTodo godoc
 // @Summary Update todo
-// @Description update todo by id (title and/or done). Use for edit and for complete/undo.
+// @Description update todo by id (only own todos). Use for edit and for complete/undo.
 // @Tags todos
 // @Accept json
 // @Produce json
+// @Security BearerAuth
 // @Param id path int true "Todo ID"
 // @Param body body Todo true "Fields to update (title and/or done)"
 // @Success 200 {object} Todo
@@ -162,6 +173,11 @@ func parseTodoID(path, prefix string) (int, bool) {
 func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch && r.Method != http.MethodPut {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id, ok := parseTodoID(r.URL.Path, "/api/todos/")
@@ -184,7 +200,7 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 	var title, description, priority, tag string
 	var done bool
 	var parentID sql.NullInt64
-	if err := h.DB.QueryRow("SELECT title, done, description, priority, tag, parent_id FROM todos WHERE id = ?", id).Scan(&title, &done, &description, &priority, &tag, &parentID); err != nil {
+	if err := h.DB.QueryRow("SELECT title, done, description, priority, tag, parent_id FROM todos WHERE id = $1 AND user_id = $2", id, userID).Scan(&title, &done, &description, &priority, &tag, &parentID); err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Todo not found", http.StatusNotFound)
 			return
@@ -220,8 +236,8 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 		parentIDVal = nil
 	}
 	_, err := h.DB.Exec(
-		"UPDATE todos SET title = ?, done = ?, description = ?, priority = ?, tag = ?, parent_id = ? WHERE id = ?",
-		title, done, description, priority, tag, parentIDVal, id,
+		"UPDATE todos SET title = $1, done = $2, description = $3, priority = $4, tag = $5, parent_id = $6 WHERE id = $7 AND user_id = $8",
+		title, done, description, priority, tag, parentIDVal, id, userID,
 	)
 	if err != nil {
 		http.Error(w, "Failed to update todo", http.StatusInternalServerError)
@@ -242,8 +258,9 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 
 // DeleteTodo godoc
 // @Summary Delete todo
-// @Description delete todo by id (cascade: deletes all descendants first)
+// @Description delete todo by id (only own todos; cascade: deletes all descendants first)
 // @Tags todos
+// @Security BearerAuth
 // @Param id path int true "Todo ID"
 // @Success 204 "No content"
 // @Failure 404 "Todo not found"
@@ -253,12 +270,17 @@ func (h *Handler) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	id, ok := parseTodoID(r.URL.Path, "/api/todos/")
 	if !ok {
 		http.Error(w, "Invalid todo id", http.StatusBadRequest)
 		return
 	}
-	if err := h.deleteTodoCascade(id); err != nil {
+	if err := h.deleteTodoCascade(r.Context(), id, userID); err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Todo not found", http.StatusNotFound)
 			return
@@ -269,8 +291,8 @@ func (h *Handler) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) deleteTodoCascade(id int) error {
-	rows, err := h.DB.Query("SELECT id FROM todos WHERE parent_id = ?", id)
+func (h *Handler) deleteTodoCascade(ctx context.Context, id, userID int) error {
+	rows, err := h.DB.QueryContext(ctx, "SELECT id FROM todos WHERE parent_id = $1 AND user_id = $2", id, userID)
 	if err != nil {
 		return err
 	}
@@ -285,11 +307,11 @@ func (h *Handler) deleteTodoCascade(id int) error {
 	}
 	rows.Close()
 	for _, cid := range childIDs {
-		if err := h.deleteTodoCascade(cid); err != nil {
+		if err := h.deleteTodoCascade(ctx, cid, userID); err != nil {
 			return err
 		}
 	}
-	res, err := h.DB.Exec("DELETE FROM todos WHERE id = ?", id)
+	res, err := h.DB.Exec("DELETE FROM todos WHERE id = $1 AND user_id = $2", id, userID)
 	if err != nil {
 		return err
 	}

@@ -11,7 +11,8 @@
 - **Удаление:** для корневых задач — модальное предупреждение о каскадном удалении подзадач; подтверждение или отмена
 - **Дерево задач:** корневые задачи сгруппированы по тегу, внутри тега — по приоритету (high → med → low → none); подзадачи отображаются под родителем
 - **Теги:** поле тега в форме с подсказками существующих тегов
-- Все данные сохраняются в SQLite
+- **Авторизация:** регистрация и вход по email/паролю; JWT в заголовке; у каждого пользователя свой список задач
+- Хранение: PostgreSQL (таблицы `users`, `todos` с `user_id`)
 - Swagger UI для тестирования API
 
 ---
@@ -25,13 +26,21 @@ git clone <твоя ссылка>
 cd todo-mini-app
 ```
 
-2. Запускаешь сервер:
+2. Поднимаешь PostgreSQL (бэкенд использует **только** PostgreSQL):
+
+- **macOS (Homebrew):** `brew install postgresql@16` (или другую версию), затем `brew services start postgresql@16`. Создать БД: `createdb todo` (или через psql: `CREATE DATABASE todo;`).
+- Либо укажи свою строку подключения: `export DATABASE_URL="postgres://user:pass@localhost/todo?sslmode=disable"`.
+- Опционально: `export JWT_SECRET="your-secret-key"` (по умолчанию — dev-значение).
+
+Без запущенного PostgreSQL сервер выведет ошибку и подсказку.
+
+3. Запускаешь сервер:
 
 ```bash
 go run cmd/server/main.go
 ```
 
-3. Открываешь браузер:
+4. Открываешь браузер:
 
 - Фронтенд: http://localhost:8080
 - Swagger: http://localhost:8080/swagger/index.html
@@ -45,9 +54,9 @@ go run cmd/server/main.go
 ## Как это устроено
 
 - Go backend с REST API
-- SQLite для хранения задач
+- PostgreSQL: таблицы `users` (email, password_hash, name), `todos` (user_id, title, done, …); пароли хешируются bcrypt, выдача JWT
 - Swagger для документации API
-- Фронтенд: React + Vite (папка `web/`), в продакшене раздаётся из `web/dist`
+- Фронтенд: React + Vite (папка `web/`); страница входа/регистрации в стиле `web/examples/auth.html`, токен в localStorage, запросы с `Authorization: Bearer <token>`
 
 ---
 

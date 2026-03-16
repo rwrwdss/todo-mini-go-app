@@ -7,7 +7,7 @@ const PRIORITIES = [
   { value: 'high', label: 'High' },
 ]
 
-export default function Modal({ open, mode, editTask, parentId, existingTags = [], onSave, onClose }) {
+export default function Modal({ open, mode, editTask, parentId, parentTag = '', existingTags = [], onSave, onClose }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('none')
@@ -28,12 +28,12 @@ export default function Modal({ open, mode, editTask, parentId, existingTags = [
         setTitle('')
         setDescription('')
         setPriority('none')
-        setTag('')
+        setTag(parentId ? (parentTag || '').trim() : '')
       }
       setTitleError(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [open, isEdit, editTask])
+  }, [open, isEdit, editTask, parentId, parentTag])
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -101,16 +101,22 @@ export default function Modal({ open, mode, editTask, parentId, existingTags = [
           </div>
           <div className="fg tag-combo">
             <label className="fl" htmlFor="modal-tag">Tag</label>
-            <input
-              id="modal-tag"
-              type="text"
-              className="fi fi--tag"
-              placeholder="design, dev, research..."
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              list="tags-datalist"
-              autoComplete="off"
-            />
+            {parentId && tag ? (
+              <div className="modal-tag-filled">
+                <span className="tag pink">{tag}</span>
+              </div>
+            ) : (
+              <input
+                id="modal-tag"
+                type="text"
+                className="fi fi--tag"
+                placeholder="design, dev, research..."
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                list="tags-datalist"
+                autoComplete="off"
+              />
+            )}
             <datalist id="tags-datalist">
               {existingTags.map((t) => (
                 <option key={t} value={t} />

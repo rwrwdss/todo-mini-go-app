@@ -32,7 +32,7 @@ web/dist-ssr/
 .cache/
 .parcel-cache/
 web/.vite/
-
+web/examples
 # Logs
 *.log
 logs/
