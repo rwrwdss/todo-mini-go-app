@@ -24,6 +24,10 @@ export default function App({ onLogout }) {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, task: null })
   const [view, setView] = useState('tree')
   const treeRootRef = useRef(null)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef(null)
+  const PAN_MAX = 320
 
   const loadTodos = useCallback(async (background = false) => {
     if (!background) {
@@ -56,6 +60,36 @@ export default function App({ onLogout }) {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  const handleCanvasMouseDown = useCallback((e) => {
+    if (view !== 'tree') return
+    const isInteractive = e.target.closest('.node-wrap, .root-card, button, a, .add-child-btn, .tag, .tag-group-label, .tr-check, .tr-title, .tr-tag')
+    if (isInteractive) return
+    panStartRef.current = { clientX: e.clientX, clientY: e.clientY, panX: pan.x, panY: pan.y }
+    setIsPanning(true)
+  }, [view, pan.x, pan.y])
+
+  useEffect(() => {
+    if (!isPanning) return
+    const onMove = (e) => {
+      if (!panStartRef.current) return
+      const dx = e.clientX - panStartRef.current.clientX
+      const dy = e.clientY - panStartRef.current.clientY
+      const newX = Math.max(-PAN_MAX, Math.min(PAN_MAX, panStartRef.current.panX + dx))
+      const newY = Math.max(-PAN_MAX, Math.min(PAN_MAX, panStartRef.current.panY + dy))
+      setPan({ x: newX, y: newY })
+    }
+    const onUp = () => {
+      panStartRef.current = null
+      setIsPanning(false)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [isPanning])
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -199,11 +233,19 @@ export default function App({ onLogout }) {
           />
         ) : (
           <>
-            <div className="canvas">
+            <div
+              className={`canvas ${isPanning ? 'canvas-panning' : ''}`}
+              onMouseDown={handleCanvasMouseDown}
+              role="presentation"
+            >
               {error ? (
                 <p className="todo-error" role="alert" style={{ color: '#e05353', marginBottom: 16 }}>{error}</p>
               ) : null}
-              <div ref={treeRootRef} className="tree-root">
+              <div
+                className="canvas-pan-wrapper"
+                style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}
+              >
+                <div ref={treeRootRef} className="tree-root">
                 {tagGroups.length === 0 ? (
                   <Empty />
                 ) : (
@@ -233,6 +275,7 @@ export default function App({ onLogout }) {
                     )
                   })
                 )}
+                </div>
               </div>
             </div>
             <StatusBar total={total} done={doneCount} pending={pendingCount} />

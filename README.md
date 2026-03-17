@@ -40,6 +40,8 @@ cd todo-mini-app
 go run cmd/server/main.go
 ```
 
+Либо собрать бинарник (чтобы не засорять корень): `go build -o bin/server ./cmd/server` и запуск: `./bin/server`.
+
 4. Открываешь браузер:
 
 - Фронтенд: http://localhost:8080

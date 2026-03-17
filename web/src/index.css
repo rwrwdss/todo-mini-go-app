@@ -593,7 +593,9 @@ body {
 /* ── CANVAS (tree view) ─────────────────────────────── */
 
 /* ── CANVAS ─────────────────────────────────────────── */
-.canvas { padding: 24px 48px 60px; flex: 1; min-height: 0; }
+.canvas { padding: 24px 48px 60px; flex: 1; min-height: 0; cursor: grab; overflow: hidden; }
+.canvas.canvas-panning { cursor: grabbing; user-select: none; }
+.canvas-pan-wrapper { display: block; }
 .tree-root { display: flex; flex-direction: column; gap: 56px; }
 
 .priority-row {
