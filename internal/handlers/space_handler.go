@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ type SpaceDetail struct {
 	Name    string         `json:"name"`
 	Type    string         `json:"type"`
 	OwnerID int            `json:"owner_id"`
+	MyRole  string         `json:"my_role,omitempty"` // current user's role in this space (admin, member)
 	Members []SpaceMember  `json:"members,omitempty"`
 }
 
@@ -47,20 +49,18 @@ type InviteMemberRequest struct {
 }
 
 func (h *Handler) ensurePersonalSpace(userID int) (spaceID int, err error) {
-	var id sql.NullInt64
-	err = h.DB.QueryRow(
-		"SELECT id FROM spaces WHERE owner_id = $1 AND type = 'personal'",
-		userID,
-	).Scan(&id)
-	if err == nil && id.Valid && id.Int64 > 0 {
-		return int(id.Int64), nil
-	}
-	err = h.DB.QueryRow(
-		"INSERT INTO spaces (name, type, owner_id) VALUES ('My Space', 'personal', $1) RETURNING id",
-		userID,
-	).Scan(&spaceID)
+	err = h.DB.QueryRow(`
+		INSERT INTO spaces (name, type, owner_id) VALUES ('My Space', 'personal', $1)
+		ON CONFLICT (owner_id, type) DO UPDATE SET name = EXCLUDED.name
+		RETURNING id
+	`, userID).Scan(&spaceID)
 	if err != nil {
-		return 0, err
+		var id sql.NullInt64
+		if qErr := h.DB.QueryRow("SELECT id FROM spaces WHERE owner_id = $1 AND type = 'personal'", userID).Scan(&id); qErr == nil && id.Valid && id.Int64 > 0 {
+			spaceID = int(id.Int64)
+		} else {
+			return 0, err
+		}
 	}
 	_, err = h.DB.Exec(
 		"INSERT INTO space_members (space_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT (space_id, user_id) DO NOTHING",
@@ -110,6 +110,7 @@ func (h *Handler) GetSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err := h.ensurePersonalSpace(userID)
 	if err != nil {
+		log.Printf("[spaces] ensurePersonalSpace userID=%d: %v", userID, err)
 		http.Error(w, "Failed to ensure personal space", http.StatusInternalServerError)
 		return
 	}
@@ -121,6 +122,7 @@ func (h *Handler) GetSpaces(w http.ResponseWriter, r *http.Request) {
 		ORDER BY s.type ASC, s.name ASC
 	`, userID)
 	if err != nil {
+		log.Printf("[spaces] list spaces userID=%d: %v", userID, err)
 		http.Error(w, "Failed to list spaces", http.StatusInternalServerError)
 		return
 	}
@@ -189,7 +191,8 @@ func (h *Handler) GetSpaceByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	detail := SpaceDetail{ID: spaceID, Name: name, Type: typ, OwnerID: ownerID}
+	myRole, _ := h.spaceRole(spaceID, userID)
+	detail := SpaceDetail{ID: spaceID, Name: name, Type: typ, OwnerID: ownerID, MyRole: myRole}
 	if typ == "corporate" {
 		memRows, err := h.DB.Query(`
 			SELECT u.id, u.email, u.name, sm.role
@@ -327,14 +330,27 @@ func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	_, err = h.DB.Exec(
-		"INSERT INTO space_members (space_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (space_id, user_id) DO UPDATE SET role = $3",
-		spaceID, inviteeID, role,
-	)
-	if err != nil {
-		http.Error(w, "Failed to add member", http.StatusInternalServerError)
+	if inviteeID == userID {
+		http.Error(w, "Cannot invite yourself", http.StatusBadRequest)
 		return
 	}
+	var invID int
+	err = h.DB.QueryRow(
+		"INSERT INTO space_invitations (space_id, invitee_id, inviter_id, role, status) VALUES ($1, $2, $3, $4, 'pending') RETURNING id",
+		spaceID, inviteeID, userID, role,
+	).Scan(&invID)
+	if err != nil {
+		if strings.Contains(err.Error(), "space_invitations_pending_uniq") || strings.Contains(err.Error(), "unique") {
+			http.Error(w, "User already invited", http.StatusConflict)
+			return
+		}
+		http.Error(w, "Failed to send invitation", http.StatusInternalServerError)
+		return
+	}
+	_, _ = h.DB.Exec(
+		"INSERT INTO notifications (user_id, type, space_id, invitation_id) VALUES ($1, 'space_invitation', $2, $3)",
+		inviteeID, spaceID, invID,
+	)
 	w.WriteHeader(http.StatusOK)
 }
 

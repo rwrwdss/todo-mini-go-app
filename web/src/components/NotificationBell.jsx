@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { getNotifications, markNotificationRead } from '../api/notifications'
+import { acceptInvitation, declineInvitation } from '../api/invitations'
+
+const POLL_INTERVAL_MS = 18000
 
 function formatNotificationTime(iso) {
   if (!iso) return ''
@@ -18,14 +21,15 @@ function formatNotificationTime(iso) {
   }
 }
 
-export default function NotificationBell({ onOpenTask }) {
+export default function NotificationBell({ onOpenTask, onAcceptInvitation }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(false)
+  const [actingId, setActingId] = useState(null)
   const ref = useRef(null)
 
-  function fetchList() {
-    setLoading(true)
+  function fetchList(showLoading = true) {
+    if (showLoading) setLoading(true)
     getNotifications()
       .then((data) => setList(Array.isArray(data) ? data : []))
       .catch(() => setList([]))
@@ -35,6 +39,11 @@ export default function NotificationBell({ onOpenTask }) {
   useEffect(() => {
     if (open) fetchList()
   }, [open])
+
+  useEffect(() => {
+    const t = setInterval(() => fetchList(false), POLL_INTERVAL_MS)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -49,13 +58,43 @@ export default function NotificationBell({ onOpenTask }) {
 
   function handleMarkRead(n) {
     if (n.read_at) return
-    markNotificationRead(n.id).then(() => fetchList())
+    markNotificationRead(n.id).then(() => fetchList(false))
   }
 
   function handleClickItem(n) {
+    if (n.type === 'space_invitation') return
     handleMarkRead(n)
     onOpenTask?.(n.todo_id)
     setOpen(false)
+  }
+
+  async function handleAccept(n) {
+    if (!n.invitation_id || actingId) return
+    setActingId(n.id)
+    try {
+      await acceptInvitation(n.invitation_id)
+      await markNotificationRead(n.id).catch(() => {})
+      onAcceptInvitation?.()
+      fetchList(false)
+    } catch {
+      fetchList(false)
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  async function handleDecline(n) {
+    if (!n.invitation_id || actingId) return
+    setActingId(n.id)
+    try {
+      await declineInvitation(n.invitation_id)
+      await markNotificationRead(n.id).catch(() => {})
+      fetchList(false)
+    } catch {
+      fetchList(false)
+    } finally {
+      setActingId(null)
+    }
   }
 
   return (
@@ -87,15 +126,33 @@ export default function NotificationBell({ onOpenTask }) {
               {list.map((n) => (
                 <li
                   key={n.id}
-                  className={`notification-bell-item ${n.read_at ? '' : 'unread'}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleClickItem(n)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleClickItem(n)}
+                  className={`notification-bell-item ${n.read_at ? '' : 'unread'} ${n.type === 'space_invitation' ? 'notification-bell-item-invitation' : ''}`}
+                  role={n.type === 'space_invitation' ? undefined : 'button'}
+                  tabIndex={n.type === 'space_invitation' ? undefined : 0}
+                  onClick={n.type === 'space_invitation' ? undefined : () => handleClickItem(n)}
+                  onKeyDown={n.type === 'space_invitation' ? undefined : (e) => e.key === 'Enter' && handleClickItem(n)}
                 >
-                  <span className="notification-bell-item-type">{n.type === 'overdue' ? 'Overdue' : 'Due soon'}</span>
-                  <span className="notification-bell-item-title">"{n.title || 'Task'}"</span>
-                  <span className="notification-bell-item-time">{formatNotificationTime(n.created_at)}</span>
+                  {n.type === 'space_invitation' ? (
+                    <>
+                      <span className="notification-bell-item-type">Invitation</span>
+                      <span className="notification-bell-item-title">Invitation to space "{n.space_name || 'Workspace'}"</span>
+                      <span className="notification-bell-item-time">{formatNotificationTime(n.created_at)}</span>
+                      <div className="notification-bell-item-actions" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" className="notification-bell-btn-accept" onClick={() => handleAccept(n)} disabled={actingId !== null}>
+                          Accept
+                        </button>
+                        <button type="button" className="notification-bell-btn-decline" onClick={() => handleDecline(n)} disabled={actingId !== null}>
+                          Decline
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="notification-bell-item-type">{n.type === 'overdue' ? 'Overdue' : 'Due soon'}</span>
+                      <span className="notification-bell-item-title">"{n.title || 'Task'}"</span>
+                      <span className="notification-bell-item-time">{formatNotificationTime(n.created_at)}</span>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

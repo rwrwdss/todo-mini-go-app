@@ -20,9 +20,29 @@ services:
     ports:
       - "8080:8080"
     environment:
+      PORT: "8080"
       DATABASE_URL: postgres://todo:todo@postgres:5432/todo?sslmode=disable
+      WEB_DIST: ./web/dist
     depends_on:
       postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  notifier:
+    build:
+      context: .
+      dockerfile: Dockerfile.notifier
+    environment:
+      DATABASE_URL: postgres://todo:todo@postgres:5432/todo?sslmode=disable
+      NOTIFIER_INTERVAL_MINUTES: "10"
+      NOTIFIER_DEDUPE_HOURS: "24"
+    depends_on:
+      app:
         condition: service_healthy
 
 volumes:

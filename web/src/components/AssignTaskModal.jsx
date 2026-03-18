@@ -12,7 +12,7 @@ export default function AssignTaskModal({ open, spaceId, members = [], existingT
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('none')
   const [tag, setTag] = useState('')
-  const [dueDate, setDueDate] = useState('')
+  const [dueDateTime, setDueDateTime] = useState('')
   const [assigneeId, setAssigneeId] = useState(null)
   const [titleError, setTitleError] = useState(false)
   const inputRef = useRef(null)
@@ -23,7 +23,7 @@ export default function AssignTaskModal({ open, spaceId, members = [], existingT
       setDescription('')
       setPriority('none')
       setTag('')
-      setDueDate('')
+      setDueDateTime('')
       setAssigneeId(members[0]?.id ?? null)
       setTitleError(false)
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -40,12 +40,14 @@ export default function AssignTaskModal({ open, spaceId, members = [], existingT
     if (!assigneeId) {
       return
     }
+    const dueAt = dueDateTime.trim() ? new Date(dueDateTime.trim()).toISOString() : null
     onSave({
       title: t,
       description: description.trim(),
       priority: priority === 'medium' ? 'med' : (priority || 'none'),
       tag: tag.trim(),
-      due_date: dueDate.trim() || null,
+      due_at: dueAt,
+      due_date: dueAt ? dueAt.slice(0, 10) : null,
       space_id: spaceId,
       assignee_id: assigneeId,
     })
@@ -93,13 +95,13 @@ export default function AssignTaskModal({ open, spaceId, members = [], existingT
             </select>
           </div>
           <div className="fg">
-            <label className="fl" htmlFor="assign-due">Due date</label>
+            <label className="fl" htmlFor="assign-due">Due date & time</label>
             <input
               id="assign-due"
-              type="date"
-              className="fi"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              type="datetime-local"
+              className="fi fi-datetime"
+              value={dueDateTime}
+              onChange={(e) => setDueDateTime(e.target.value)}
             />
           </div>
           <div className="fg">

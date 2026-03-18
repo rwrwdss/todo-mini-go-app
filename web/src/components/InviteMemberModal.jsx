@@ -4,6 +4,7 @@ export default function InviteMemberModal({ open, onInvite, onClose }) {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('member')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -11,6 +12,7 @@ export default function InviteMemberModal({ open, onInvite, onClose }) {
       setEmail('')
       setRole('member')
       setError('')
+      setSuccess(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open])
@@ -25,7 +27,7 @@ export default function InviteMemberModal({ open, onInvite, onClose }) {
     setError('')
     try {
       await onInvite(em, role)
-      onClose()
+      setSuccess(true)
     } catch (err) {
       setError(err.message || 'Failed to invite')
     }
@@ -37,34 +39,43 @@ export default function InviteMemberModal({ open, onInvite, onClose }) {
     <div className="modal-bg open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="modal-ttl">Invite member</div>
-        <form onSubmit={handleSubmit}>
-          <div className="fg">
-            <label className="fl" htmlFor="invite-email">Email</label>
-            <input
-              ref={inputRef}
-              id="invite-email"
-              type="email"
-              className="fi"
-              placeholder="colleague@example.com"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError('') }}
-              autoComplete="email"
-              style={error ? { borderColor: 'var(--red)' } : {}}
-            />
-          </div>
-          <div className="fg">
-            <label className="fl" htmlFor="invite-role">Role</label>
-            <select id="invite-role" className="fi" value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          {error ? <p className="modal-error" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>{error}</p> : null}
-          <div className="modal-footer">
-            <button type="button" className="bc" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-save">Invite</button>
-          </div>
-        </form>
+        {success ? (
+          <>
+            <p className="invite-success-msg">Invitation sent. The user will appear in the list after they accept.</p>
+            <div className="modal-footer">
+              <button type="button" className="btn-save" onClick={() => { setSuccess(false); onClose(); }}>Done</button>
+            </div>
+          </>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="fg">
+              <label className="fl" htmlFor="invite-email">Email</label>
+              <input
+                ref={inputRef}
+                id="invite-email"
+                type="email"
+                className="fi"
+                placeholder="colleague@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                autoComplete="email"
+                style={error ? { borderColor: 'var(--red)' } : {}}
+              />
+            </div>
+            <div className="fg">
+              <label className="fl" htmlFor="invite-role">Role</label>
+              <select id="invite-role" className="fi" value={role} onChange={(e) => setRole(e.target.value)}>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            {error ? <p className="modal-error" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>{error}</p> : null}
+            <div className="modal-footer">
+              <button type="button" className="bc" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn-save">Invite</button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )

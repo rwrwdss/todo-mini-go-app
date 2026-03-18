@@ -53,6 +53,29 @@ export function groupRootsByTag(roots) {
 }
 
 /**
+ * Groups root nodes by space (for "from other spaces" block). Returns array of { spaceId, spaceName, tagGroups }.
+ * Uses space_id and space_name from nodes; tagGroups is from groupRootsByTag for that space's roots.
+ */
+export function groupRootsBySpace(roots) {
+  if (!Array.isArray(roots) || !roots.length) return []
+  const bySpace = new Map()
+  for (const node of roots) {
+    const sid = node.space_id ?? 0
+    const sname = (node.space_name || '').trim() || `Space ${sid}`
+    const key = sid || 'none'
+    if (!bySpace.has(key)) bySpace.set(key, { spaceId: sid, spaceName: sname, roots: [] })
+    bySpace.get(key).roots.push(node)
+  }
+  return [...bySpace.values()]
+    .sort((a, b) => (a.spaceName || '').localeCompare(b.spaceName || ''))
+    .map(({ spaceId, spaceName, roots: spaceRoots }) => ({
+      spaceId,
+      spaceName,
+      tagGroups: groupRootsByTag(spaceRoots),
+    }))
+}
+
+/**
  * Groups root nodes by priority. Returns array of { priority, nodes } in order: high, med, low, none.
  * Skips empty groups.
  */

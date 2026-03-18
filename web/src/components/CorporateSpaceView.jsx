@@ -6,6 +6,7 @@ export default function CorporateSpaceView({
   todos = [],
   spaceDetail = null,
   corpTab = 'board',
+  currentUser = null,
   onRefresh,
   onSelectTask,
 }) {
@@ -26,6 +27,14 @@ export default function CorporateSpaceView({
     if (!id) return null
     const m = members.find((x) => x.id === id)
     return m ? (m.name || m.email || `#${id}`) : null
+  }
+
+  function getAssigneeLabel(task) {
+    const name = getAssigneeName(task)
+    if (!name) return null
+    const id = task.assignee_id ?? task.assigneeId
+    const isYou = currentUser?.id != null && id === currentUser.id
+    return { text: isYou ? 'You' : `Assigned to: ${name}`, title: name }
   }
 
   return (
@@ -49,9 +58,10 @@ export default function CorporateSpaceView({
                           <span className="tc-pri">{t.priority || 'none'}</span>
                           {t.due_date ? <span className="tc-due">{t.due_date}</span> : null}
                         </div>
-                        {getAssigneeName(t) ? (
-                          <div className="tc-assignees">
+                        {getAssigneeLabel(t) ? (
+                          <div className="tc-assignees" title={getAssigneeLabel(t).title}>
                             <span className="tc-av">{getAssigneeName(t).charAt(0).toUpperCase()}</span>
+                            <span className="tc-assignee-label">{getAssigneeLabel(t).text}</span>
                           </div>
                         ) : null}
                       </div>
@@ -70,7 +80,12 @@ export default function CorporateSpaceView({
                         <div className="tc-meta">
                           {t.tag ? <span className="tc-tag">{t.tag}</span> : null}
                           {t.due_date ? <span className="tc-due">{t.due_date}</span> : null}
-                          {getAssigneeName(t) ? <span className="tc-av">{getAssigneeName(t).charAt(0).toUpperCase()}</span> : null}
+                          {getAssigneeLabel(t) ? (
+                            <div className="tc-assignees" title={getAssigneeLabel(t).title}>
+                              <span className="tc-av">{getAssigneeName(t).charAt(0).toUpperCase()}</span>
+                              <span className="tc-assignee-label">{getAssigneeLabel(t).text}</span>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -101,7 +116,7 @@ export default function CorporateSpaceView({
                     <div className="lt-cell"><span className="lt-tag">{t.tag || '—'}</span></div>
                     <div className="lt-cell">{t.priority || 'none'}</div>
                     <div className="lt-cell">{t.due_date || '—'}</div>
-                    <div className="lt-cell">{getAssigneeName(t) || '—'}</div>
+                    <div className="lt-cell" title={getAssigneeName(t) || ''}>{currentUser?.id != null && (t.assignee_id ?? t.assigneeId) === currentUser.id ? 'You' : (getAssigneeName(t) || '—')}</div>
                     <div className="lt-cell">
                       <div className={`lt-chk ${t.done ? 'on' : ''}`} />
                     </div>

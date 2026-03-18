@@ -1,4 +1,4 @@
-export default function TaskCard({ task, isRoot, onToggleDone, onEdit, onDelete, onAddSub, onSelectTask }) {
+export default function TaskCard({ task, isRoot, onToggleDone, onEdit, onDelete, onAddSub, onSelectTask, canEdit = true, canDelete = true, showAssignedToYou = false }) {
   const priority = (task.priority || 'none').toLowerCase()
   const pc = priority !== 'none' ? `p-${priority === 'medium' ? 'med' : priority}` : ''
   const done = task.done ? 'done' : ''
@@ -31,30 +31,37 @@ export default function TaskCard({ task, isRoot, onToggleDone, onEdit, onDelete,
           <div className="task-title">{task.title}</div>
         </div>
         <div className="task-actions">
-          <button
-            type="button"
-            className="tbtn"
-            title="Edit"
-            onClick={() => onEdit(task)}
-          >
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M1 10l2-.5 6.5-6.5-2-2L1.5 8 1 10z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="tbtn del"
-            title="Delete"
-            onClick={() => onDelete(task)}
-          >
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M1.5 1.5l8 8M9.5 1.5l-8 8" />
-            </svg>
-          </button>
+          {canEdit ? (
+            <button
+              type="button"
+              className="tbtn"
+              title="Edit"
+              onClick={() => onEdit(task)}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <path d="M1 10l2-.5 6.5-6.5-2-2L1.5 8 1 10z" />
+              </svg>
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button
+              type="button"
+              className="tbtn del"
+              title="Delete"
+              onClick={() => onDelete(task)}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <path d="M1.5 1.5l8 8M9.5 1.5l-8 8" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
       {task.description ? (
         <div className="task-desc">{task.description}</div>
+      ) : null}
+      {showAssignedToYou ? (
+        <div className="task-assigned-to-you">Assigned to you</div>
       ) : null}
       <div className="task-footer">
         <div className="task-meta">

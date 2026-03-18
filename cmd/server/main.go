@@ -16,6 +16,7 @@ import (
 
 	_ "todo-go-app/docs" // for swagger docs
 	"todo-go-app/internal/auth"
+	"todo-go-app/internal/config"
 	"todo-go-app/internal/handlers"
 	"todo-go-app/internal/storage"
 
@@ -39,11 +40,17 @@ func spaHandler(dir string) http.Handler {
 }
 
 func main() {
-	db, err := storage.InitPostgres()
+	cfg := config.Load()
+	config.InitLog("APP")
+
+	auth.InitJWT([]byte(cfg.JWTSecret))
+
+	db, err := storage.InitPostgres(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("database: %v", err)
 	}
 	defer db.Close()
+	log.Printf("database connected")
 
 	h := &handlers.Handler{
 		DB: db,
@@ -57,6 +64,10 @@ func main() {
 	http.HandleFunc("/api/create", auth.RequireAuth(h.CreateTodo))
 	http.HandleFunc("/api/spaces", auth.RequireAuth(h.SpacesRouter))
 	http.HandleFunc("/api/spaces/", auth.RequireAuth(h.SpacesRouter))
+	http.HandleFunc("/api/invitations", auth.RequireAuth(h.InvitationsRouter))
+	http.HandleFunc("/api/invitations/", auth.RequireAuth(h.InvitationsRouter))
+	http.HandleFunc("POST /api/invitations/{id}/accept", auth.RequireAuth(h.AcceptInvitation))
+	http.HandleFunc("POST /api/invitations/{id}/decline", auth.RequireAuth(h.DeclineInvitation))
 	http.HandleFunc("/api/notifications", auth.RequireAuth(h.NotificationsRouter))
 	http.HandleFunc("/api/notifications/", auth.RequireAuth(h.NotificationsRouter))
 	cssFS, _ := fs.Sub(swaggerThemeCSS, "static")
@@ -70,10 +81,10 @@ func main() {
 		}),
 	))
 
-	webDist := "./web/dist"
+	webDist := cfg.WebDist
 	if _, err := os.Stat(webDist); err == nil {
 		http.Handle("/", spaHandler(webDist))
-		log.Println("Serving frontend from web/dist")
+		log.Printf("frontend: serving from %s", webDist)
 	} else {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/" {
@@ -84,11 +95,12 @@ func main() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			w.Write([]byte("Frontend not built. Run: cd web && npm run build\n"))
 		})
-		log.Println("Frontend not found (web/dist). Run 'cd web && npm run build' to serve React app")
+		log.Printf("frontend: not built (missing %s), run 'cd web && npm run build'", webDist)
 	}
 
-	log.Println("Server started on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal(err)
+	addr := ":" + cfg.Port
+	log.Printf("listening on %s", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Fatalf("server: %v", err)
 	}
 }

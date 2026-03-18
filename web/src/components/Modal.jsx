@@ -12,11 +12,23 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('none')
   const [tag, setTag] = useState('')
-  const [dueDate, setDueDate] = useState('')
+  const [dueDateTime, setDueDateTime] = useState('')
   const [titleError, setTitleError] = useState(false)
   const inputRef = useRef(null)
 
   const isEdit = mode === 'edit' && editTask
+
+  function toDateTimeLocal(isoOrDate) {
+    if (!isoOrDate) return ''
+    const d = new Date(isoOrDate.indexOf('T') >= 0 ? isoOrDate : isoOrDate + 'T12:00:00')
+    if (Number.isNaN(d.getTime())) return ''
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const h = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${y}-${m}-${day}T${h}:${min}`
+  }
 
   useEffect(() => {
     if (open) {
@@ -25,13 +37,13 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
         setDescription(editTask.description || '')
         setPriority((editTask.priority || 'none').toLowerCase())
         setTag(editTask.tag || '')
-        setDueDate(editTask.due_date || '')
+        setDueDateTime(toDateTimeLocal(editTask.due_at || editTask.due_date || ''))
       } else {
         setTitle('')
         setDescription('')
         setPriority('none')
         setTag(parentId ? (parentTag || '').trim() : '')
-        setDueDate('')
+        setDueDateTime('')
       }
       setTitleError(false)
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -46,12 +58,16 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
       return
     }
     const prio = priority === 'medium' ? 'med' : (priority || 'none')
+    const dueAt = dueDateTime.trim()
+      ? new Date(dueDateTime.trim()).toISOString()
+      : null
     onSave({
       title: t,
       description: description.trim(),
       priority: prio,
       tag: tag.trim(),
-      due_date: dueDate.trim() || null,
+      due_at: dueAt,
+      due_date: dueAt ? dueAt.slice(0, 10) : null,
       ...(isEdit ? {} : { parent_id: parentId ?? null }),
     })
     onClose()
@@ -104,13 +120,13 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
             </select>
           </div>
           <div className="fg">
-            <label className="fl" htmlFor="modal-due">Due date</label>
+            <label className="fl" htmlFor="modal-due">Due date & time</label>
             <input
               id="modal-due"
-              type="date"
-              className="fi"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              type="datetime-local"
+              className="fi fi-datetime"
+              value={dueDateTime}
+              onChange={(e) => setDueDateTime(e.target.value)}
             />
           </div>
           <div className="fg tag-combo">

@@ -27,7 +27,7 @@ function isOverdue(dueDateStr) {
   return dueDateStr < today
 }
 
-export default function TaskDetailPanel({ taskId, onClose, onEdit, onDelete, spaceMembers = [] }) {
+export default function TaskDetailPanel({ taskId, onClose, onEdit, onDelete, spaceMembers = [], canEdit = true, canDelete = true }) {
   const [task, setTask] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -121,8 +121,8 @@ export default function TaskDetailPanel({ taskId, onClose, onEdit, onDelete, spa
             )}
             <div className="task-detail-panel-actions">
               <button type="button" className="bc" onClick={onClose}>Close</button>
-              <button type="button" className="btn-ghost" onClick={() => onEdit?.(task)}>Edit</button>
-              <button type="button" className="btn-sm" onClick={() => onDelete?.(task)}>Delete</button>
+              {canEdit ? <button type="button" className="btn-ghost" onClick={() => onEdit?.(task)}>Edit</button> : null}
+              {canDelete ? <button type="button" className="btn-sm" onClick={() => onDelete?.(task)}>Delete</button> : null}
             </div>
           </div>
         )}

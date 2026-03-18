@@ -1,13 +1,14 @@
 module todo-go-app
 
-go 1.25.7
+go 1.24.0
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.11.2
 	github.com/swaggo/http-swagger v1.3.4
-	github.com/swaggo/swag v1.16.6
-	golang.org/x/crypto v0.49.0
+	github.com/swaggo/swag v1.16.4
+	golang.org/x/crypto v0.28.0
 )
 
 require (
@@ -24,8 +25,8 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 )

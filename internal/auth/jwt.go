@@ -22,6 +22,13 @@ func init() {
 	}
 }
 
+// InitJWT sets the secret from config (call after loading .env). If not called, env JWT_SECRET or default is used.
+func InitJWT(secret []byte) {
+	if len(secret) > 0 {
+		jwtSecret = secret
+	}
+}
+
 func GenerateToken(userID int) (string, error) {
 	exp := time.Now().Add(7 * 24 * time.Hour)
 	claims := Claims{
