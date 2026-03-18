@@ -36,9 +36,11 @@ function useStoredUser() {
   }
 }
 
-export default function Sidebar({ view, onNavigate, taskCount, tagCounts, onLogout }) {
+export default function Sidebar({ view, onNavigate, taskCount, tagCounts, onLogout, spaces = [], currentSpaceId, onSpaceSelect, onNewWorkspace }) {
   const tagList = Array.isArray(tagCounts) ? tagCounts : []
   const user = useStoredUser()
+  const personalSpaces = Array.isArray(spaces) ? spaces.filter((s) => s.type === 'personal') : []
+  const workspaceSpaces = Array.isArray(spaces) ? spaces.filter((s) => s.type === 'corporate') : []
 
   return (
     <aside className="sidebar">
@@ -59,6 +61,42 @@ export default function Sidebar({ view, onNavigate, taskCount, tagCounts, onLogo
           My tasks
           {taskCount != null && <span className="sb-badge">{taskCount}</span>}
         </button>
+      </div>
+
+      {personalSpaces.length > 0 ? (
+        <div className="sb-section">
+          <div className="sb-label">My Space</div>
+          {personalSpaces.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`sb-item ${currentSpaceId === s.id ? 'active' : ''}`}
+              onClick={() => { onSpaceSelect?.(s.id); onNavigate('tree') }}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="sb-section">
+        <div className="sb-label">Workspaces</div>
+        {workspaceSpaces.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`sb-item ${currentSpaceId === s.id ? 'active' : ''}`}
+            onClick={() => { onSpaceSelect?.(s.id); onNavigate('tree') }}
+          >
+            {s.name}
+            <span className="sb-badge">{s.role}</span>
+          </button>
+        ))}
+        {onNewWorkspace ? (
+          <button type="button" className="sb-item sb-item-new" onClick={onNewWorkspace}>
+            + New workspace
+          </button>
+        ) : null}
       </div>
 
       {tagList.length > 0 ? (

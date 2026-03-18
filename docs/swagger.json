@@ -1,12 +1,40 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "API for tasks with JWT auth. Register or login at /api/auth/* to get a token; send it as Authorization: Bearer \u0026lt;token\u0026gt; for /api/todos and /api/create.",
+        "description": "API for tasks with JWT auth and spaces (personal + corporate). Register or login at /api/auth/*; use GET /api/auth/check to validate session. Send token as Authorization: Bearer \u0026lt;token\u0026gt; for /api/todos, /api/create, /api/spaces. Todos support space_id and assignee_id for corporate workspaces.",
         "title": "Task.grid API",
         "contact": {},
         "version": "1.0"
     },
     "paths": {
+        "/api/auth/check": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Validate JWT and return minimal user profile. Returns 401 if token missing or expired. Use periodically (e.g. every 5 min) to keep session alive.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Check session",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
         "/api/auth/login": {
             "post": {
                 "description": "Returns JWT and user info. Use token in Authorization: Bearer \u003ctoken\u003e for /api/todos and /api/create.",
@@ -27,7 +55,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.LoginRequest"
+                            "$ref": "#/definitions/handlers.LoginRequest"
                         }
                     }
                 ],
@@ -35,7 +63,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                            "$ref": "#/definitions/handlers.AuthResponse"
                         }
                     },
                     "400": {
@@ -67,7 +95,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.RegisterRequest"
+                            "$ref": "#/definitions/handlers.RegisterRequest"
                         }
                     }
                 ],
@@ -75,7 +103,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.AuthResponse"
+                            "$ref": "#/definitions/handlers.AuthResponse"
                         }
                     },
                     "400": {
@@ -94,7 +122,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "create new todo for the authenticated user (title required; description, priority, tag, parent_id optional)",
+                "description": "create new todo. Optional space_id (default: personal), assignee_id (required in corporate; must be space member). In personal space assignee = current user.",
                 "consumes": [
                     "application/json"
                 ],
@@ -107,12 +135,12 @@
                 "summary": "Create todo",
                 "parameters": [
                     {
-                        "description": "Todo object",
+                        "description": "Todo (title required; space_id, assignee_id optional)",
                         "name": "todo",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Todo"
+                            "$ref": "#/definitions/handlers.Todo"
                         }
                     }
                 ],
@@ -120,8 +148,162 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Todo"
+                            "$ref": "#/definitions/handlers.Todo"
                         }
+                    }
+                }
+            }
+        },
+        "/api/spaces": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List spaces for the current user (personal + corporate where member). Ensures personal space exists.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spaces"
+                ],
+                "summary": "List spaces",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.SpaceListItem"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new corporate space. Caller becomes owner and admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spaces"
+                ],
+                "summary": "Create corporate space",
+                "parameters": [
+                    {
+                        "description": "name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateSpaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SpaceListItem"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/spaces/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get space details and members (for corporate). Caller must be a member.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spaces"
+                ],
+                "summary": "Get space by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Space ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SpaceDetail"
+                        }
+                    },
+                    "403": {
+                        "description": "Not a member"
+                    },
+                    "404": {
+                        "description": "Space not found"
+                    }
+                }
+            }
+        },
+        "/api/spaces/{id}/members": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a user to the space by email. Caller must be admin. User must already exist.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spaces"
+                ],
+                "summary": "Invite member to space",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Space ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "email, role",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.InviteMemberRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "403": {
+                        "description": "Not admin"
+                    },
+                    "404": {
+                        "description": "User not found"
                     }
                 }
             }
@@ -133,15 +315,21 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "get list of todos for the authenticated user. Optional query parent_id to filter by parent.",
+                "description": "get list of todos in the given space. Use space_id query (default: user's personal space). In corporate space, members see only their assigned tasks unless admin.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "todos"
                 ],
-                "summary": "Get all todos",
+                "summary": "Get todos in a space",
                 "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Space ID (default: personal)",
+                        "name": "space_id",
+                        "in": "query"
+                    },
                     {
                         "type": "integer",
                         "description": "Filter children of this todo id",
@@ -155,7 +343,7 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/internal_handlers.Todo"
+                                "$ref": "#/definitions/handlers.Todo"
                             }
                         }
                     }
@@ -223,7 +411,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Todo"
+                            "$ref": "#/definitions/handlers.Todo"
                         }
                     }
                 ],
@@ -231,7 +419,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.Todo"
+                            "$ref": "#/definitions/handlers.Todo"
                         }
                     },
                     "404": {
@@ -242,18 +430,37 @@
         }
     },
     "definitions": {
-        "internal_handlers.AuthResponse": {
+        "handlers.AuthResponse": {
             "type": "object",
             "properties": {
                 "token": {
                     "type": "string"
                 },
                 "user": {
-                    "$ref": "#/definitions/internal_handlers.UserResponse"
+                    "$ref": "#/definitions/handlers.UserResponse"
                 }
             }
         },
-        "internal_handlers.LoginRequest": {
+        "handlers.CreateSpaceRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.InviteMemberRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.LoginRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -264,7 +471,7 @@
                 }
             }
         },
-        "internal_handlers.RegisterRequest": {
+        "handlers.RegisterRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -278,9 +485,69 @@
                 }
             }
         },
-        "internal_handlers.Todo": {
+        "handlers.SpaceDetail": {
             "type": "object",
             "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.SpaceMember"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.SpaceListItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.SpaceMember": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.Todo": {
+            "type": "object",
+            "properties": {
+                "assignee_id": {
+                    "type": "integer"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -296,6 +563,9 @@
                 "priority": {
                     "type": "string"
                 },
+                "space_id": {
+                    "type": "integer"
+                },
                 "tag": {
                     "type": "string"
                 },
@@ -304,7 +574,7 @@
                 }
             }
         },
-        "internal_handlers.UserResponse": {
+        "handlers.UserResponse": {
             "type": "object",
             "properties": {
                 "email": {

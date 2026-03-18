@@ -45,3 +45,16 @@ export function saveAuth(token, user) {
   localStorage.setItem('token', token)
   if (user) localStorage.setItem('user', JSON.stringify(user))
 }
+
+export async function checkSession() {
+  const token = getStoredToken()
+  if (!token) return null
+  const res = await fetch(`${API_BASE}/auth/check`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  })
+  if (res.status === 401) return null
+  if (!res.ok) throw new Error('Session check failed')
+  return res.json()
+}

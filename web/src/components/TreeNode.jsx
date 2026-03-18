@@ -1,6 +1,6 @@
 import TaskCard from './TaskCard'
 
-export default function TreeNode({ node, isRoot, onToggleDone, onEdit, onDelete, onAddSub }) {
+export default function TreeNode({ node, isRoot, onToggleDone, onEdit, onDelete, onAddSub, onSelectTask }) {
   const hasChildren = node.children && node.children.length > 0
 
   return (
@@ -12,6 +12,7 @@ export default function TreeNode({ node, isRoot, onToggleDone, onEdit, onDelete,
         onEdit={onEdit}
         onDelete={onDelete}
         onAddSub={onAddSub}
+        onSelectTask={onSelectTask}
       />
       {hasChildren ? (
         <div className="children-wrap">
@@ -26,6 +27,7 @@ export default function TreeNode({ node, isRoot, onToggleDone, onEdit, onDelete,
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onAddSub={onAddSub}
+                onSelectTask={onSelectTask}
               />
             ))}
           </div>

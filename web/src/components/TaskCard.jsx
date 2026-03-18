@@ -1,11 +1,23 @@
-export default function TaskCard({ task, isRoot, onToggleDone, onEdit, onDelete, onAddSub }) {
+export default function TaskCard({ task, isRoot, onToggleDone, onEdit, onDelete, onAddSub, onSelectTask }) {
   const priority = (task.priority || 'none').toLowerCase()
   const pc = priority !== 'none' ? `p-${priority === 'medium' ? 'med' : priority}` : ''
   const done = task.done ? 'done' : ''
   const rc = isRoot ? 'root-card' : ''
 
+  function handleCardClick(e) {
+    if (e.target.closest('.chk, .tbtn, .add-child-btn')) return
+    onSelectTask?.(task)
+  }
+
   return (
-    <div className={`task-card ${pc} ${done} ${rc}`} data-id={task.id}>
+    <div
+      className={`task-card ${pc} ${done} ${rc}`}
+      data-id={task.id}
+      onClick={onSelectTask ? handleCardClick : undefined}
+      role={onSelectTask ? 'button' : undefined}
+      tabIndex={onSelectTask ? 0 : undefined}
+      onKeyDown={onSelectTask ? (e) => e.key === 'Enter' && handleCardClick(e) : undefined}
+    >
       <div className="task-header">
         <div className="task-left">
           <div
@@ -49,6 +61,11 @@ export default function TaskCard({ task, isRoot, onToggleDone, onEdit, onDelete,
           {task.tag ? <span className="tag pink">{task.tag}</span> : null}
           {task.priority && task.priority !== 'none' ? (
             <span className="tag">{task.priority}</span>
+          ) : null}
+          {task.due_date ? (
+            <span className={`tag task-due ${task.due_date < new Date().toISOString().slice(0, 10) && !task.done ? 'task-due-overdue' : ''}`}>
+              {task.due_date}
+            </span>
           ) : null}
         </div>
         <button type="button" className="add-child-btn" onClick={() => onAddSub(task)}>

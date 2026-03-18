@@ -1,12 +1,14 @@
 // @title Task.grid API
 // @version 1.0
-// @description API for tasks with JWT auth. Register or login at /api/auth/* to get a token; send it as Authorization: Bearer &lt;token&gt; for /api/todos and /api/create.
+// @description API for tasks with JWT auth and spaces (personal + corporate). Register or login at /api/auth/*; use GET /api/auth/check to validate session. Send token as Authorization: Bearer &lt;token&gt; for /api/todos, /api/create, /api/spaces. Todos support space_id and assignee_id for corporate workspaces.
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +21,9 @@ import (
 
 	httpSwagger "github.com/swaggo/http-swagger" // for swagger UI
 )
+
+//go:embed static/swagger-theme.css
+var swaggerThemeCSS embed.FS
 
 // spaHandler serves static files from dir and falls back to index.html for SPA routes.
 func spaHandler(dir string) http.Handler {
@@ -46,10 +51,24 @@ func main() {
 
 	http.HandleFunc("/api/auth/register", h.Register)
 	http.HandleFunc("/api/auth/login", h.Login)
+	http.HandleFunc("/api/auth/check", auth.RequireAuth(h.CheckSession))
 	http.HandleFunc("/api/todos", auth.RequireAuth(h.GetTodos))
 	http.HandleFunc("/api/todos/", auth.RequireAuth(h.TodosByID))
 	http.HandleFunc("/api/create", auth.RequireAuth(h.CreateTodo))
-	http.Handle("/swagger/", httpSwagger.WrapHandler)
+	http.HandleFunc("/api/spaces", auth.RequireAuth(h.SpacesRouter))
+	http.HandleFunc("/api/spaces/", auth.RequireAuth(h.SpacesRouter))
+	http.HandleFunc("/api/notifications", auth.RequireAuth(h.NotificationsRouter))
+	http.HandleFunc("/api/notifications/", auth.RequireAuth(h.NotificationsRouter))
+	cssFS, _ := fs.Sub(swaggerThemeCSS, "static")
+	http.HandleFunc("/swagger/theme.css", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		http.ServeFileFS(w, r, cssFS, "swagger-theme.css")
+	})
+	http.Handle("/swagger/", httpSwagger.Handler(
+		httpSwagger.UIConfig(map[string]string{
+			"customCssUrl": `"/swagger/theme.css"`,
+		}),
+	))
 
 	webDist := "./web/dist"
 	if _, err := os.Stat(webDist); err == nil {

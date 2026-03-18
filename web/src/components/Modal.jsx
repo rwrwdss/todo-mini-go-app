@@ -12,6 +12,7 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('none')
   const [tag, setTag] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [titleError, setTitleError] = useState(false)
   const inputRef = useRef(null)
 
@@ -24,11 +25,13 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
         setDescription(editTask.description || '')
         setPriority((editTask.priority || 'none').toLowerCase())
         setTag(editTask.tag || '')
+        setDueDate(editTask.due_date || '')
       } else {
         setTitle('')
         setDescription('')
         setPriority('none')
         setTag(parentId ? (parentTag || '').trim() : '')
+        setDueDate('')
       }
       setTitleError(false)
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -48,6 +51,7 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
       description: description.trim(),
       priority: prio,
       tag: tag.trim(),
+      due_date: dueDate.trim() || null,
       ...(isEdit ? {} : { parent_id: parentId ?? null }),
     })
     onClose()
@@ -98,6 +102,16 @@ export default function Modal({ open, mode, editTask, parentId, parentTag = '', 
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
+          </div>
+          <div className="fg">
+            <label className="fl" htmlFor="modal-due">Due date</label>
+            <input
+              id="modal-due"
+              type="date"
+              className="fi"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
           </div>
           <div className="fg tag-combo">
             <label className="fl" htmlFor="modal-tag">Tag</label>

@@ -22,10 +22,17 @@ function authFetch(url, opts = {}) {
   })
 }
 
-export async function getTodos(parentId = null) {
-  const url = parentId != null
-    ? `${API_BASE}/todos?parent_id=${parentId}`
-    : `${API_BASE}/todos`
+export async function getTodoById(id) {
+  const res = await authFetch(`${API_BASE}/todos/${id}`, { cache: 'no-store' })
+  return handleResponse(res)
+}
+
+export async function getTodos(spaceId = null, parentId = null) {
+  const params = new URLSearchParams()
+  if (spaceId != null && spaceId > 0) params.set('space_id', String(spaceId))
+  if (parentId != null) params.set('parent_id', String(parentId))
+  const qs = params.toString()
+  const url = qs ? `${API_BASE}/todos?${qs}` : `${API_BASE}/todos`
   const res = await authFetch(url, { cache: 'no-store' })
   return handleResponse(res)
 }
@@ -45,6 +52,9 @@ export async function createTodo(payload) {
       priority: body.priority ?? 'none',
       tag: body.tag ?? '',
       parent_id: body.parent_id ?? null,
+      space_id: body.space_id ?? null,
+      assignee_id: body.assignee_id ?? null,
+      due_date: body.due_date ?? null,
     }),
   })
   return handleResponse(res)

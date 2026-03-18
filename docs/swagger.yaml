@@ -1,19 +1,31 @@
 definitions:
-  internal_handlers.AuthResponse:
+  handlers.AuthResponse:
     properties:
       token:
         type: string
       user:
-        $ref: '#/definitions/internal_handlers.UserResponse'
+        $ref: '#/definitions/handlers.UserResponse'
     type: object
-  internal_handlers.LoginRequest:
+  handlers.CreateSpaceRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  handlers.InviteMemberRequest:
+    properties:
+      email:
+        type: string
+      role:
+        type: string
+    type: object
+  handlers.LoginRequest:
     properties:
       email:
         type: string
       password:
         type: string
     type: object
-  internal_handlers.RegisterRequest:
+  handlers.RegisterRequest:
     properties:
       email:
         type: string
@@ -22,8 +34,47 @@ definitions:
       password:
         type: string
     type: object
-  internal_handlers.Todo:
+  handlers.SpaceDetail:
     properties:
+      id:
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/handlers.SpaceMember'
+        type: array
+      name:
+        type: string
+      owner_id:
+        type: integer
+      type:
+        type: string
+    type: object
+  handlers.SpaceListItem:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      role:
+        type: string
+      type:
+        type: string
+    type: object
+  handlers.SpaceMember:
+    properties:
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      role:
+        type: string
+    type: object
+  handlers.Todo:
+    properties:
+      assignee_id:
+        type: integer
       description:
         type: string
       done:
@@ -34,12 +85,14 @@ definitions:
         type: integer
       priority:
         type: string
+      space_id:
+        type: integer
       tag:
         type: string
       title:
         type: string
     type: object
-  internal_handlers.UserResponse:
+  handlers.UserResponse:
     properties:
       email:
         type: string
@@ -50,11 +103,31 @@ definitions:
     type: object
 info:
   contact: {}
-  description: 'API for tasks with JWT auth. Register or login at /api/auth/* to get
-    a token; send it as Authorization: Bearer &lt;token&gt; for /api/todos and /api/create.'
+  description: 'API for tasks with JWT auth and spaces (personal + corporate). Register
+    or login at /api/auth/*; use GET /api/auth/check to validate session. Send token
+    as Authorization: Bearer &lt;token&gt; for /api/todos, /api/create, /api/spaces.
+    Todos support space_id and assignee_id for corporate workspaces.'
   title: Task.grid API
   version: "1.0"
 paths:
+  /api/auth/check:
+    get:
+      description: Validate JWT and return minimal user profile. Returns 401 if token
+        missing or expired. Use periodically (e.g. every 5 min) to keep session alive.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserResponse'
+        "401":
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: Check session
+      tags:
+      - auth
   /api/auth/login:
     post:
       consumes:
@@ -67,14 +140,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.LoginRequest'
+          $ref: '#/definitions/handlers.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handlers.AuthResponse'
+            $ref: '#/definitions/handlers.AuthResponse'
         "400":
           description: Email and password required
         "401":
@@ -94,14 +167,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.RegisterRequest'
+          $ref: '#/definitions/handlers.RegisterRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handlers.AuthResponse'
+            $ref: '#/definitions/handlers.AuthResponse'
         "400":
           description: Invalid input
         "409":
@@ -113,32 +186,137 @@ paths:
     post:
       consumes:
       - application/json
-      description: create new todo for the authenticated user (title required; description,
-        priority, tag, parent_id optional)
+      description: 'create new todo. Optional space_id (default: personal), assignee_id
+        (required in corporate; must be space member). In personal space assignee
+        = current user.'
       parameters:
-      - description: Todo object
+      - description: Todo (title required; space_id, assignee_id optional)
         in: body
         name: todo
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.Todo'
+          $ref: '#/definitions/handlers.Todo'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handlers.Todo'
+            $ref: '#/definitions/handlers.Todo'
       security:
       - BearerAuth: []
       summary: Create todo
       tags:
       - todos
+  /api/spaces:
+    get:
+      description: List spaces for the current user (personal + corporate where member).
+        Ensures personal space exists.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.SpaceListItem'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List spaces
+      tags:
+      - spaces
+    post:
+      consumes:
+      - application/json
+      description: Create a new corporate space. Caller becomes owner and admin.
+      parameters:
+      - description: name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateSpaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SpaceListItem'
+      security:
+      - BearerAuth: []
+      summary: Create corporate space
+      tags:
+      - spaces
+  /api/spaces/{id}:
+    get:
+      description: Get space details and members (for corporate). Caller must be a
+        member.
+      parameters:
+      - description: Space ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.SpaceDetail'
+        "403":
+          description: Not a member
+        "404":
+          description: Space not found
+      security:
+      - BearerAuth: []
+      summary: Get space by ID
+      tags:
+      - spaces
+  /api/spaces/{id}/members:
+    post:
+      consumes:
+      - application/json
+      description: Add a user to the space by email. Caller must be admin. User must
+        already exist.
+      parameters:
+      - description: Space ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: email, role
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.InviteMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: Not admin
+        "404":
+          description: User not found
+      security:
+      - BearerAuth: []
+      summary: Invite member to space
+      tags:
+      - spaces
   /api/todos:
     get:
-      description: get list of todos for the authenticated user. Optional query parent_id
-        to filter by parent.
+      description: 'get list of todos in the given space. Use space_id query (default:
+        user''s personal space). In corporate space, members see only their assigned
+        tasks unless admin.'
       parameters:
+      - description: 'Space ID (default: personal)'
+        in: query
+        name: space_id
+        type: integer
       - description: Filter children of this todo id
         in: query
         name: parent_id
@@ -150,11 +328,11 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/internal_handlers.Todo'
+              $ref: '#/definitions/handlers.Todo'
             type: array
       security:
       - BearerAuth: []
-      summary: Get all todos
+      summary: Get todos in a space
       tags:
       - todos
   /api/todos/{id}:
@@ -192,14 +370,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.Todo'
+          $ref: '#/definitions/handlers.Todo'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handlers.Todo'
+            $ref: '#/definitions/handlers.Todo'
         "404":
           description: Todo not found
       security:

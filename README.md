@@ -12,8 +12,9 @@
 - **Дерево задач:** корневые задачи сгруппированы по тегу, внутри тега — по приоритету (high → med → low → none); подзадачи отображаются под родителем
 - **Теги:** поле тега в форме с подсказками существующих тегов
 - **Авторизация:** регистрация и вход по email/паролю; JWT в заголовке; у каждого пользователя свой список задач
+- **Dashboard:** виджет недавних задач, группировка по тегам
 - Хранение: PostgreSQL (таблицы `users`, `todos` с `user_id`)
-- Swagger UI для тестирования API
+- Swagger UI для тестирования API (тёмная тема в стиле сайта)
 
 ---
 
@@ -51,6 +52,14 @@ go run cmd/server/main.go
 
 **Режим разработки фронтенда (React + Vite):** запусти бэкенд в одном терминале (`go run cmd/server/main.go`), в другом — `cd web && npm run dev`. Фронтенд будет на http://localhost:5173 с прокси к API на :8080. Для продакшена: `cd web && npm run build` — Go затем раздаёт собранное из `web/dist`.
 
+### Запуск через Docker (вся платформа: PostgreSQL + бэкенд + фронтенд)
+
+```bash
+docker compose up --build
+```
+
+После сборки приложение доступно на http://localhost:8080, Swagger — http://localhost:8080/swagger/index.html. БД PostgreSQL поднимается в контейнере (порт 5432). Остановка: `docker compose down`.
+
 ---
 
 ## Как это устроено
@@ -64,26 +73,33 @@ go run cmd/server/main.go
 
 ## Как проверить API через curl
 
-Создать задачу:
+Эндпоинты задач требуют авторизации. Сначала получи токен:
 
 ```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your@email.com","password":"yourpassword"}'
+```
+
+В ответе будет `token`. Дальше передавай его в заголовке:
+
+```bash
+export TOKEN="<токен из ответа login>"
+curl http://localhost:8080/api/todos -H "Authorization: Bearer $TOKEN"
 curl -X POST http://localhost:8080/api/create \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Учить Go"}'
 ```
 
-Получить список задач:
-
-```bash
-curl http://localhost:8080/api/todos
-```
+Удобнее тестировать через Swagger UI: там можно залогиниться и нажать «Authorize».
 
 ---
 
 ## Планы для улучшения
 
 - Добавить логирование
-- Подключить Docker
+- ~~Подключить Docker~~ (реализовано)
 - Подключить брокер сообщений (rabbitmq, kafka и т.п.)
 
 ![Screenshot](https://github.com/user-attachments/assets/a0248197-f54a-4800-ad06-69ca25bc4a07)

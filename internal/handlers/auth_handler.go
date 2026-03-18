@@ -85,6 +85,19 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create personal space for new user
+	var spaceID int
+	_ = h.DB.QueryRow(
+		"INSERT INTO spaces (name, type, owner_id) VALUES ('My Space', 'personal', $1) RETURNING id",
+		id,
+	).Scan(&spaceID)
+	if spaceID > 0 {
+		_, _ = h.DB.Exec(
+			"INSERT INTO space_members (space_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT (space_id, user_id) DO NOTHING",
+			spaceID, id,
+		)
+	}
+
 	token, err := auth.GenerateToken(id)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
@@ -157,4 +170,37 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		Token: token,
 		User:  UserResponse{ID: id, Email: req.Email, Name: name},
 	})
+}
+
+// CheckSession godoc
+// @Summary Check session
+// @Description Validate JWT and return minimal user profile. Returns 401 if token missing or expired. Use periodically (e.g. every 5 min) to keep session alive.
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} UserResponse
+// @Failure 401 "Unauthorized"
+// @Router /api/auth/check [get]
+func (h *Handler) CheckSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var email, name string
+	err := h.DB.QueryRow("SELECT email, name FROM users WHERE id = $1", userID).Scan(&email, &name)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(UserResponse{ID: userID, Email: email, Name: name})
 }
