@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { getTodos, createTodo, updateTodo, deleteTodo } from './api/todos'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { getTodos, getTodosFromOtherSpaces, createTodo, updateTodo, deleteTodo } from './api/todos'
 import { getSpaces, getSpace, createSpace, inviteMember } from './api/spaces'
 import { checkSession, logout } from './api/auth'
-import { buildTree, groupRootsByTag, groupRootsByPriority, positionHLines, countDescendants } from './utils/tree'
+import { buildTree, groupRootsByTag, groupRootsBySpace, groupRootsByPriority, positionHLines, countDescendants } from './utils/tree'
 import Sidebar from './components/Sidebar'
 import SpacePicker from './components/SpacePicker'
 import TreeNode from './components/TreeNode'
@@ -48,6 +48,32 @@ export default function App({ onLogout }) {
   const [createWorkspaceModalOpen, setCreateWorkspaceModalOpen] = useState(false)
   const [corpTab, setCorpTab] = useState('board')
   const [selectedTaskId, setSelectedTaskId] = useState(null)
+  const [showOtherSpacesTasks, setShowOtherSpacesTasks] = useState(() => {
+    try {
+      return localStorage.getItem('showOtherSpacesTasks') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [otherSpacesTodos, setOtherSpacesTodos] = useState([])
+  const [otherSpacesFetchError, setOtherSpacesFetchError] = useState(null)
+
+  const currentUser = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      return u?.id != null ? { id: u.id } : null
+    } catch {
+      return null
+    }
+  }, [])
+
+  function canModify(task, { fromOtherSpaces = false } = {}) {
+    if (!currentUser?.id || !task) return false
+    const isCreator = (task.creator_id ?? task.creatorId) === currentUser.id
+    const isAssignee = (task.assignee_id ?? task.assigneeId) === currentUser.id
+    if (fromOtherSpaces) return isCreator
+    return isCreator || spaceDetail?.my_role === 'admin'
+  }
 
   useEffect(() => {
     if (isCorporate && currentSpaceId) {
@@ -124,6 +150,34 @@ export default function App({ onLogout }) {
   useEffect(() => {
     loadTodos()
   }, [loadTodos])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('showOtherSpacesTasks', showOtherSpacesTasks ? '1' : '0')
+    } catch {}
+  }, [showOtherSpacesTasks])
+
+  useEffect(() => {
+    if (!showOtherSpacesTasks || isCorporate) {
+      setOtherSpacesTodos([])
+      setOtherSpacesFetchError(null)
+      return
+    }
+    function fetchOther() {
+      getTodosFromOtherSpaces()
+        .then((data) => {
+          setOtherSpacesTodos(Array.isArray(data) ? data : [])
+          setOtherSpacesFetchError(null)
+        })
+        .catch((err) => {
+          setOtherSpacesFetchError(err?.message || 'Failed to load')
+          console.warn('[from-other-spaces]', err)
+        })
+    }
+    fetchOther()
+    const interval = setInterval(fetchOther, 15000)
+    return () => clearInterval(interval)
+  }, [showOtherSpacesTasks, isCorporate])
 
   // Corporate space: poll tasks every 4s when tab is visible
   useEffect(() => {
@@ -212,6 +266,8 @@ export default function App({ onLogout }) {
 
   const tree = buildTree(todos)
   const tagGroups = groupRootsByTag(tree)
+  const otherTree = buildTree(otherSpacesTodos)
+  const otherSpaceGroups = groupRootsBySpace(otherTree)
   const existingTags = [...new Set(todos.map((t) => (t.tag || '').trim()).filter(Boolean))].sort()
   const total = todos.length
   const doneCount = todos.filter((t) => t.done).length
@@ -240,6 +296,14 @@ export default function App({ onLogout }) {
     setModal((m) => ({ ...m, open: false }))
   }
 
+  async function refreshOtherSpacesIfShown() {
+    if (showOtherSpacesTasks && !isCorporate) {
+      getTodosFromOtherSpaces()
+        .then((data) => setOtherSpacesTodos(Array.isArray(data) ? data : []))
+        .catch(() => setOtherSpacesTodos([]))
+    }
+  }
+
   async function handleSave(payload) {
     setError(null)
     try {
@@ -251,6 +315,7 @@ export default function App({ onLogout }) {
         await createTodo(body)
       }
       await loadTodos(true)
+      await refreshOtherSpacesIfShown()
     } catch (e) {
       setError(e.message || 'Failed to save')
     }
@@ -261,6 +326,7 @@ export default function App({ onLogout }) {
     try {
       await updateTodo(task.id, { done: !task.done })
       await loadTodos(true)
+      await refreshOtherSpacesIfShown()
     } catch (e) {
       setError(e.message || 'Failed to update')
     }
@@ -276,6 +342,7 @@ export default function App({ onLogout }) {
     try {
       await deleteTodo(task.id)
       await loadTodos(true)
+      await refreshOtherSpacesIfShown()
     } catch (e) {
       setError(e.message || 'Failed to delete')
     }
@@ -296,6 +363,14 @@ export default function App({ onLogout }) {
   }
 
   const tagCounts = tagGroups.map((g) => ({ tag: g.tag || '', count: g.nodes.length }))
+
+  const selectedTask = useMemo(
+    () => todos.find((t) => t.id === selectedTaskId) ?? otherSpacesTodos.find((t) => t.id === selectedTaskId),
+    [todos, otherSpacesTodos, selectedTaskId]
+  )
+  const isSelectedFromOtherSpaces = Boolean(selectedTask && !todos.some((t) => t.id === selectedTaskId))
+  const canEditSelected = selectedTask ? canModify(selectedTask, { fromOtherSpaces: isSelectedFromOtherSpaces }) : false
+  const canDeleteSelected = canEditSelected
 
   if (loading && todos.length === 0) {
     return (
@@ -346,11 +421,25 @@ export default function App({ onLogout }) {
               </>
             ) : (
               <>
+                <label className="tb-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={showOtherSpacesTasks}
+                    onChange={(e) => setShowOtherSpacesTasks(e.target.checked)}
+                  />
+                  <span>Show tasks from other spaces</span>
+                </label>
                 <span className="task-count">{total === 1 ? '1 task' : `${total} tasks`}</span>
                 <button type="button" className="btn-sm" onClick={openNewTask}>+ New task</button>
               </>
             )}
-            <NotificationBell onOpenTask={(todoId) => setSelectedTaskId(todoId)} />
+            <NotificationBell
+              onOpenTask={(todoId) => setSelectedTaskId(todoId)}
+              onAcceptInvitation={() => {
+                refreshSpaces()
+                refreshOtherSpacesIfShown()
+              }}
+            />
           </div>
         </div>
 
@@ -366,6 +455,7 @@ export default function App({ onLogout }) {
               todos={todos}
               spaceDetail={spaceDetail}
               corpTab={corpTab}
+              currentUser={currentUser}
               onRefresh={() => loadTodos(true)}
               onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
             />
@@ -404,38 +494,124 @@ export default function App({ onLogout }) {
                 className="canvas-pan-wrapper"
                 style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}
               >
-                <div ref={treeRootRef} className="tree-root">
-                {tagGroups.length === 0 ? (
-                  <Empty />
-                ) : (
-                  tagGroups.map((tagGroup) => {
-                    const priorityRows = groupRootsByPriority(tagGroup.nodes)
-                    return (
-                      <div key={tagGroup.tag || '_none'} className="tag-group" data-tag={tagGroup.tag || ''}>
-                        <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'No tag'}</div>
-                        <div className="tag-group-body">
-                          {priorityRows.map((group) => (
-                            <div key={group.priority} className="priority-row">
-                              {group.nodes.map((node) => (
-                                <TreeNode
-                                  key={node.id}
-                                  node={node}
-                                  isRoot
-                                  onToggleDone={handleToggleDone}
-                                  onEdit={openEdit}
-                                  onDelete={handleDelete}
-                                  onAddSub={openAddSub}
-                                  onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
-                                />
-                              ))}
+                {showOtherSpacesTasks ? (
+                  <>
+                    <div ref={treeRootRef} className="tree-root tree-root--personal">
+                      <div className="tree-block-title">Personal</div>
+                      {tagGroups.length === 0 ? (
+                        <Empty />
+                      ) : (
+                        tagGroups.map((tagGroup) => {
+                          const priorityRows = groupRootsByPriority(tagGroup.nodes)
+                          return (
+                            <div key={tagGroup.tag || '_none'} className="tag-group" data-tag={tagGroup.tag || ''}>
+                              <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'No tag'}</div>
+                              <div className="tag-group-body">
+                                {priorityRows.map((group) => (
+                                  <div key={group.priority} className="priority-row">
+                                    {group.nodes.map((node) => (
+                                      <TreeNode
+                                        key={node.id}
+                                        node={node}
+                                        isRoot
+                                        onToggleDone={handleToggleDone}
+                                        onEdit={openEdit}
+                                        onDelete={handleDelete}
+                                        onAddSub={openAddSub}
+                                        onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
+                                        canEdit={(t) => canModify(t)}
+                                        canDelete={(t) => canModify(t)}
+                                      />
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          ))}
+                          )
+                        })
+                      )}
+                    </div>
+                    <div className="tree-root tree-root--other">
+                      <div className="tree-block-title">From other spaces</div>
+                      {otherSpacesFetchError ? (
+                        <p className="tree-other-empty tree-other-error">{otherSpacesFetchError}</p>
+                      ) : null}
+                      {otherSpaceGroups.length === 0 && !otherSpacesFetchError ? (
+                        <p className="tree-other-empty">No tasks from other spaces</p>
+                      ) : (
+                        otherSpaceGroups.map((spaceGroup) => (
+                          <div key={spaceGroup.spaceId || 'none'} className="tree-other-space-block">
+                            <div className="tree-other-space-name">{spaceGroup.spaceName}</div>
+                            {spaceGroup.tagGroups.map((tagGroup) => {
+                              const priorityRows = groupRootsByPriority(tagGroup.nodes)
+                              return (
+                                <div key={tagGroup.tag || '_none'} className="tag-group" data-tag={tagGroup.tag || ''}>
+                                  <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'No tag'}</div>
+                                  <div className="tag-group-body">
+                                    {priorityRows.map((group) => (
+                                      <div key={group.priority} className="priority-row">
+                                        {group.nodes.map((node) => (
+                                          <TreeNode
+                                            key={node.id}
+                                            node={node}
+                                            isRoot
+                                            onToggleDone={handleToggleDone}
+                                            onEdit={openEdit}
+                                            onDelete={handleDelete}
+                                            onAddSub={openAddSub}
+                                            onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
+                                            canEdit={(t) => canModify(t, { fromOtherSpaces: true })}
+                                            canDelete={(t) => canModify(t, { fromOtherSpaces: true })}
+                                            showAssignedToYou
+                                          />
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div ref={treeRootRef} className="tree-root">
+                  {tagGroups.length === 0 ? (
+                    <Empty />
+                  ) : (
+                    tagGroups.map((tagGroup) => {
+                      const priorityRows = groupRootsByPriority(tagGroup.nodes)
+                      return (
+                        <div key={tagGroup.tag || '_none'} className="tag-group" data-tag={tagGroup.tag || ''}>
+                          <div className="tag-group-label">{tagGroup.tag ? tagGroup.tag : 'No tag'}</div>
+                          <div className="tag-group-body">
+                            {priorityRows.map((group) => (
+                              <div key={group.priority} className="priority-row">
+                                {group.nodes.map((node) => (
+                                  <TreeNode
+                                    key={node.id}
+                                    node={node}
+                                    isRoot
+                                    onToggleDone={handleToggleDone}
+                                    onEdit={openEdit}
+                                    onDelete={handleDelete}
+                                    onAddSub={openAddSub}
+                                    onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
+                                    canEdit={(t) => canModify(t)}
+                                    canDelete={(t) => canModify(t)}
+                                  />
+                                ))}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })
+                      )
+                    })
+                  )}
+                  </div>
                 )}
-                </div>
               </div>
             </div>
             <StatusBar total={total} done={doneCount} pending={pendingCount} />
@@ -471,6 +647,8 @@ export default function App({ onLogout }) {
         onEdit={(task) => { setSelectedTaskId(null); openEdit(task); }}
         onDelete={(task) => { setSelectedTaskId(null); handleDelete(task); }}
         spaceMembers={isCorporate ? (spaceDetail?.members || []) : []}
+        canEdit={canEditSelected}
+        canDelete={canDeleteSelected}
       />
     </div>
   )

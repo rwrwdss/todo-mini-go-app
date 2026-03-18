@@ -25,6 +25,27 @@ definitions:
       password:
         type: string
     type: object
+  handlers.NotificationItem:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      invitation_id:
+        type: integer
+      read_at:
+        type: string
+      space_id:
+        type: integer
+      space_name:
+        type: string
+      title:
+        type: string
+      todo_id:
+        type: integer
+      type:
+        type: string
+    type: object
   handlers.RegisterRequest:
     properties:
       email:
@@ -42,6 +63,9 @@ definitions:
         items:
           $ref: '#/definitions/handlers.SpaceMember'
         type: array
+      my_role:
+        description: current user's role in this space (admin, member)
+        type: string
       name:
         type: string
       owner_id:
@@ -75,10 +99,22 @@ definitions:
     properties:
       assignee_id:
         type: integer
+      created_at:
+        type: string
+      creator_id:
+        type: integer
+      creator_name:
+        type: string
       description:
         type: string
       done:
         type: boolean
+      due_at:
+        description: full ISO datetime
+        type: string
+      due_date:
+        description: date only (YYYY-MM-DD), for display
+        type: string
       id:
         type: integer
       parent_id:
@@ -87,6 +123,9 @@ definitions:
         type: string
       space_id:
         type: integer
+      space_name:
+        description: filled only in from-other-spaces response
+        type: string
       tag:
         type: string
       title:
@@ -208,6 +247,48 @@ paths:
       summary: Create todo
       tags:
       - todos
+  /api/notifications:
+    get:
+      description: List notifications for the current user (overdue and due_soon).
+        Sorted by created_at DESC.
+      parameters:
+      - description: Max items (default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.NotificationItem'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List notifications
+      tags:
+      - notifications
+  /api/notifications/{id}:
+    patch:
+      description: Set read_at for the notification. User must own the notification.
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+      security:
+      - BearerAuth: []
+      summary: Mark notification as read
+      tags:
+      - notifications
   /api/spaces:
     get:
       description: List spaces for the current user (personal + corporate where member).
@@ -353,6 +434,29 @@ paths:
       security:
       - BearerAuth: []
       summary: Delete todo
+      tags:
+      - todos
+    get:
+      description: get full task details including creator and created_at. Caller
+        must have access to the task's space.
+      parameters:
+      - description: Todo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Todo'
+        "404":
+          description: Todo not found
+      security:
+      - BearerAuth: []
+      summary: Get todo by ID
       tags:
       - todos
     patch:

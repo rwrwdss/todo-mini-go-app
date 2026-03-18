@@ -1,5 +1,5 @@
 // Notifier microservice: periodically finds todos with due_date (overdue or due soon)
-// and creates notifications for assignees. Run with same DATABASE_URL as main server.
+// and creates notifications for assignees. Uses same DATABASE_URL as main server.
 package main
 
 import (
@@ -8,43 +8,43 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"todo-go-app/internal/config"
 	"todo-go-app/internal/storage"
 )
 
-const (
-	checkInterval = 10 * time.Minute
-	dedupeHours   = 24
-)
-
 func main() {
-	db, err := storage.InitPostgres()
+	cfg := config.LoadNotifier()
+	config.InitLog("NOTIFIER")
+
+	db, err := storage.ConnectPostgres(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal("notifier: db init: ", err)
+		log.Fatalf("database: %v", err)
 	}
 	defer db.Close()
+	log.Printf("database connected, check_interval=%s dedupe_hours=%d", cfg.CheckInterval, cfg.DedupeHours)
 
-	log.Println("notifier: started, interval ", checkInterval)
-	run(db)
-	ticker := time.NewTicker(checkInterval)
+	run(db, cfg.DedupeHours)
+	ticker := time.NewTicker(cfg.CheckInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		run(db)
+		run(db, cfg.DedupeHours)
 	}
 }
 
-func run(db *sql.DB) {
+func run(db *sql.DB, dedupeHours int) {
 	now := time.Now().UTC()
-	today := now.Format("2006-01-02")
-	tomorrow := now.AddDate(0, 0, 1).Format("2006-01-02")
-	dedupeSince := now.Add(-dedupeHours * time.Hour)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	tomorrowEnd := todayStart.AddDate(0, 0, 2) // end of tomorrow
+	dedupeSince := now.Add(-time.Duration(dedupeHours) * time.Hour)
 
 	rows, err := db.Query(`
-		SELECT id, COALESCE(assignee_id, user_id) as assignee_id, due_date::text
+		SELECT id, COALESCE(assignee_id, user_id) as assignee_id,
+			COALESCE(due_at, (due_date::text || ' 00:00:00')::timestamptz) as due_at
 		FROM todos
-		WHERE due_date IS NOT NULL AND done = FALSE
+		WHERE (due_at IS NOT NULL OR due_date IS NOT NULL) AND done = FALSE
 	`)
 	if err != nil {
-		log.Println("notifier: query todos: ", err)
+		log.Printf("query todos: %v", err)
 		return
 	}
 	defer rows.Close()
@@ -52,13 +52,14 @@ func run(db *sql.DB) {
 	var overdue, dueSoon []struct{ todoID, assigneeID int }
 	for rows.Next() {
 		var todoID, assigneeID int
-		var dueStr string
-		if err := rows.Scan(&todoID, &assigneeID, &dueStr); err != nil {
+		var dueAt sql.NullTime
+		if err := rows.Scan(&todoID, &assigneeID, &dueAt); err != nil || !dueAt.Valid {
 			continue
 		}
-		if dueStr < today {
+		t := dueAt.Time.UTC()
+		if t.Before(now) {
 			overdue = append(overdue, struct{ todoID, assigneeID int }{todoID, assigneeID})
-		} else if dueStr == today || dueStr == tomorrow {
+		} else if !t.Before(todayStart) && t.Before(tomorrowEnd) {
 			dueSoon = append(dueSoon, struct{ todoID, assigneeID int }{todoID, assigneeID})
 		}
 	}

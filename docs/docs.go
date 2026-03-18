@@ -162,6 +162,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List notifications for the current user (overdue and due_soon). Sorted by created_at DESC.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "List notifications",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.NotificationItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Set read_at for the notification. User must own the notification.",
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Mark notification as read",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Notification ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
         "/api/spaces": {
             "get": {
                 "security": [
@@ -359,6 +426,41 @@ const docTemplate = `{
             }
         },
         "/api/todos/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "get full task details including creator and created_at. Caller must have access to the task's space.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "todos"
+                ],
+                "summary": "Get todo by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Todo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Todo"
+                        }
+                    },
+                    "404": {
+                        "description": "Todo not found"
+                    }
+                }
+            },
             "delete": {
                 "security": [
                     {
@@ -479,6 +581,38 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.NotificationItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "invitation_id": {
+                    "type": "integer"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "space_id": {
+                    "type": "integer"
+                },
+                "space_name": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "todo_id": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.RegisterRequest": {
             "type": "object",
             "properties": {
@@ -504,6 +638,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handlers.SpaceMember"
                     }
+                },
+                "my_role": {
+                    "description": "current user's role in this space (admin, member)",
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -556,11 +694,28 @@ const docTemplate = `{
                 "assignee_id": {
                     "type": "integer"
                 },
+                "created_at": {
+                    "type": "string"
+                },
+                "creator_id": {
+                    "type": "integer"
+                },
+                "creator_name": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
                 "done": {
                     "type": "boolean"
+                },
+                "due_at": {
+                    "description": "full ISO datetime",
+                    "type": "string"
+                },
+                "due_date": {
+                    "description": "date only (YYYY-MM-DD), for display",
+                    "type": "string"
                 },
                 "id": {
                     "type": "integer"
@@ -573,6 +728,10 @@ const docTemplate = `{
                 },
                 "space_id": {
                     "type": "integer"
+                },
+                "space_name": {
+                    "description": "filled only in from-other-spaces response",
+                    "type": "string"
                 },
                 "tag": {
                     "type": "string"

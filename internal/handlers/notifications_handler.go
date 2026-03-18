@@ -12,12 +12,15 @@ import (
 
 // Notification item for API response
 type NotificationItem struct {
-	ID        int     `json:"id"`
-	TodoID    int     `json:"todo_id"`
-	Type      string  `json:"type"`
-	CreatedAt string  `json:"created_at"`
-	ReadAt    *string `json:"read_at,omitempty"`
-	Title     string  `json:"title"`
+	ID           int     `json:"id"`
+	TodoID       int     `json:"todo_id,omitempty"`
+	Type         string  `json:"type"`
+	CreatedAt    string  `json:"created_at"`
+	ReadAt       *string `json:"read_at,omitempty"`
+	Title        string  `json:"title,omitempty"`
+	SpaceID      int     `json:"space_id,omitempty"`
+	SpaceName    string  `json:"space_name,omitempty"`
+	InvitationID int     `json:"invitation_id,omitempty"`
 }
 
 // GetNotifications godoc
@@ -45,11 +48,15 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 			limit = l
 		}
 	}
+	// Exclude space_invitation notifications for invitations already accepted/declined
 	rows, err := h.DB.Query(`
-		SELECT n.id, n.todo_id, n.type, n.created_at, n.read_at, t.title
+		SELECT n.id, n.todo_id, n.type, n.created_at, n.read_at, t.title, n.space_id, n.invitation_id, s.name
 		FROM notifications n
-		JOIN todos t ON t.id = n.todo_id
+		LEFT JOIN todos t ON t.id = n.todo_id
+		LEFT JOIN spaces s ON s.id = n.space_id
+		LEFT JOIN space_invitations i ON i.id = n.invitation_id AND n.type = 'space_invitation'
 		WHERE n.user_id = $1
+		AND (n.type != 'space_invitation' OR (i.id IS NOT NULL AND i.status = 'pending'))
 		ORDER BY n.created_at DESC
 		LIMIT $2
 	`, userID, limit)
@@ -64,8 +71,28 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 		var item NotificationItem
 		var readAt sql.NullTime
 		var createdAt sql.NullTime
-		if err := rows.Scan(&item.ID, &item.TodoID, &item.Type, &createdAt, &readAt, &item.Title); err != nil {
+		var todoID sql.NullInt64
+		var title sql.NullString
+		var spaceID sql.NullInt64
+		var invitationID sql.NullInt64
+		var spaceName sql.NullString
+		if err := rows.Scan(&item.ID, &todoID, &item.Type, &createdAt, &readAt, &title, &spaceID, &invitationID, &spaceName); err != nil {
 			continue
+		}
+		if todoID.Valid {
+			item.TodoID = int(todoID.Int64)
+		}
+		if title.Valid {
+			item.Title = title.String
+		}
+		if spaceID.Valid {
+			item.SpaceID = int(spaceID.Int64)
+		}
+		if invitationID.Valid {
+			item.InvitationID = int(invitationID.Int64)
+		}
+		if spaceName.Valid {
+			item.SpaceName = spaceName.String
 		}
 		if createdAt.Valid {
 			item.CreatedAt = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")

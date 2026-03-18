@@ -37,6 +37,11 @@ export async function getTodos(spaceId = null, parentId = null) {
   return handleResponse(res)
 }
 
+export async function getTodosFromOtherSpaces() {
+  const res = await authFetch(`${API_BASE}/todos/from-other-spaces`, { cache: 'no-store' })
+  return handleResponse(res)
+}
+
 export async function createTodo(payload) {
   const body = typeof payload === 'string' ? { title: payload } : payload
   if (!body.title || !String(body.title).trim()) {
@@ -54,6 +59,7 @@ export async function createTodo(payload) {
       parent_id: body.parent_id ?? null,
       space_id: body.space_id ?? null,
       assignee_id: body.assignee_id ?? null,
+      due_at: body.due_at ?? null,
       due_date: body.due_date ?? null,
     }),
   })
