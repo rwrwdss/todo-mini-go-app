@@ -169,7 +169,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "List notifications for the current user (overdue and due_soon). Sorted by created_at DESC.",
+                "description": "List notifications for the current user. Sorted by created_at DESC.",
                 "produces": [
                     "application/json"
                 ],
@@ -182,6 +182,18 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Max items (default 50)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by notification type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include archived notifications (default false)",
+                        "name": "include_archived",
                         "in": "query"
                     }
                 ],
@@ -205,11 +217,56 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Set read_at for the notification. User must own the notification.",
+                "description": "Set read/unread and archive/unarchive for the notification. User must own the notification.",
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "notifications"
                 ],
-                "summary": "Mark notification as read",
+                "summary": "Update notification state",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Notification ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "read, archived",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/notifications/{id}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Archive notification. User must own the notification.",
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Archive notification",
                 "parameters": [
                     {
                         "type": "integer",
@@ -330,6 +387,58 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Space not found"
+                    }
+                }
+            }
+        },
+        "/api/spaces/{id}/activity": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns activity log for corporate space. Only space admins can access.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spaces"
+                ],
+                "summary": "Get space activity",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Space ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by event type",
+                        "name": "event_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.SpaceActivityItem"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden"
                     }
                 }
             }
@@ -584,6 +693,9 @@ const docTemplate = `{
         "handlers.NotificationItem": {
             "type": "object",
             "properties": {
+                "archived_at": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -624,6 +736,42 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.SpaceActivityItem": {
+            "type": "object",
+            "properties": {
+                "actor_id": {
+                    "type": "integer"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "event_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "payload": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "space_id": {
+                    "type": "integer"
+                },
+                "subject_name": {
+                    "type": "string"
+                },
+                "subject_user_id": {
+                    "type": "integer"
+                },
+                "todo_id": {
+                    "type": "integer"
                 }
             }
         },

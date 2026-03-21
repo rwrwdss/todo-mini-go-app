@@ -285,6 +285,25 @@ body {
 
 /* Notification bell */
 .notification-bell { position: relative; }
+.inbox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 84px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.inbox-btn:hover { color: var(--pink); border-color: var(--pink-faint); }
 .notification-bell-btn {
   background: none;
   border: none;
@@ -400,6 +419,15 @@ body {
 .notification-bell-btn-decline:hover:not(:disabled) { background: var(--surface); color: var(--text); }
 .notification-bell-btn-accept:disabled,
 .notification-bell-btn-decline:disabled { opacity: 0.6; cursor: not-allowed; }
+.activity-list { display: grid; gap: 10px; width: 100%; }
+.activity-item {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.activity-text { color: var(--text); font-size: 13px; line-height: 1.4; }
+.activity-meta { color: var(--text3); font-size: 11px; margin-top: 4px; }
 
 .invite-success-msg {
   color: var(--text2);
@@ -999,8 +1027,8 @@ body {
   color: var(--text3);
   margin-bottom: 16px;
 }
-.tree-root--personal .tree-block-title { color: var(--pink); }
-.tree-root--personal { margin-bottom: 48px; }
+.tree-root--personal .tree-block-title { color: var(--pink); margin-top: 12px; }
+.tree-root--personal { gap: 24px; margin-bottom: 32px; }
 .tree-root--other { margin-top: 8px; }
 .tree-other-empty { color: var(--text3); font-size: 13px; margin: 24px 0; }
 .tree-other-error { color: var(--danger, #c0392b); font-size: 13px; margin: 24px 0; }

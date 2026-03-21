@@ -27,6 +27,8 @@ definitions:
     type: object
   handlers.NotificationItem:
     properties:
+      archived_at:
+        type: string
       created_at:
         type: string
       id:
@@ -54,6 +56,30 @@ definitions:
         type: string
       password:
         type: string
+    type: object
+  handlers.SpaceActivityItem:
+    properties:
+      actor_id:
+        type: integer
+      actor_name:
+        type: string
+      created_at:
+        type: string
+      event_type:
+        type: string
+      id:
+        type: integer
+      payload:
+        additionalProperties: true
+        type: object
+      space_id:
+        type: integer
+      subject_name:
+        type: string
+      subject_user_id:
+        type: integer
+      todo_id:
+        type: integer
     type: object
   handlers.SpaceDetail:
     properties:
@@ -249,13 +275,20 @@ paths:
       - todos
   /api/notifications:
     get:
-      description: List notifications for the current user (overdue and due_soon).
-        Sorted by created_at DESC.
+      description: List notifications for the current user. Sorted by created_at DESC.
       parameters:
       - description: Max items (default 50)
         in: query
         name: limit
         type: integer
+      - description: Filter by notification type
+        in: query
+        name: type
+        type: string
+      - description: Include archived notifications (default false)
+        in: query
+        name: include_archived
+        type: boolean
       produces:
       - application/json
       responses:
@@ -272,7 +305,36 @@ paths:
       - notifications
   /api/notifications/{id}:
     patch:
-      description: Set read_at for the notification. User must own the notification.
+      consumes:
+      - application/json
+      description: Set read/unread and archive/unarchive for the notification. User
+        must own the notification.
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: read, archived
+        in: body
+        name: body
+        schema:
+          additionalProperties:
+            type: boolean
+          type: object
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+      security:
+      - BearerAuth: []
+      summary: Update notification state
+      tags:
+      - notifications
+  /api/notifications/{id}/archive:
+    post:
+      description: Archive notification. User must own the notification.
       parameters:
       - description: Notification ID
         in: path
@@ -286,7 +348,7 @@ paths:
           description: Not found
       security:
       - BearerAuth: []
-      summary: Mark notification as read
+      summary: Archive notification
       tags:
       - notifications
   /api/spaces:
@@ -354,6 +416,40 @@ paths:
       security:
       - BearerAuth: []
       summary: Get space by ID
+      tags:
+      - spaces
+  /api/spaces/{id}/activity:
+    get:
+      description: Returns activity log for corporate space. Only space admins can
+        access.
+      parameters:
+      - description: Space ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Max items (default 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by event type
+        in: query
+        name: event_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.SpaceActivityItem'
+            type: array
+        "403":
+          description: Forbidden
+      security:
+      - BearerAuth: []
+      summary: Get space activity
       tags:
       - spaces
   /api/spaces/{id}/members:

@@ -16,7 +16,8 @@ import AssignTaskModal from './components/AssignTaskModal'
 import InviteMemberModal from './components/InviteMemberModal'
 import CreateWorkspaceModal from './components/CreateWorkspaceModal'
 import TaskDetailPanel from './components/TaskDetailPanel'
-import NotificationBell from './components/NotificationBell'
+import Inbox from './components/Inbox'
+import SpaceActivityView from './components/SpaceActivityView'
 import './index.css'
 
 export default function App({ onLogout }) {
@@ -84,6 +85,12 @@ export default function App({ onLogout }) {
       setSpaceDetail(null)
     }
   }, [isCorporate, currentSpaceId])
+
+  useEffect(() => {
+    if (corpTab === 'activity' && currentSpace?.role !== 'admin') {
+      setCorpTab('board')
+    }
+  }, [corpTab, currentSpace?.role])
 
   const refreshSpaces = useCallback(() => {
     getSpaces()
@@ -411,6 +418,9 @@ export default function App({ onLogout }) {
                   <button type="button" className={`vtab ${corpTab === 'board' ? 'on' : ''}`} onClick={() => setCorpTab('board')}>Board</button>
                   <button type="button" className={`vtab ${corpTab === 'list' ? 'on' : ''}`} onClick={() => setCorpTab('list')}>List</button>
                   <button type="button" className={`vtab ${corpTab === 'members' ? 'on' : ''}`} onClick={() => setCorpTab('members')}>Members</button>
+                  {currentSpace?.role === 'admin' ? (
+                    <button type="button" className={`vtab ${corpTab === 'activity' ? 'on' : ''}`} onClick={() => setCorpTab('activity')}>Activity</button>
+                  ) : null}
                 </div>
                 {currentSpace?.role === 'admin' ? (
                   <>
@@ -433,8 +443,9 @@ export default function App({ onLogout }) {
                 <button type="button" className="btn-sm" onClick={openNewTask}>+ New task</button>
               </>
             )}
-            <NotificationBell
+            <Inbox
               onOpenTask={(todoId) => setSelectedTaskId(todoId)}
+              onOpenSpace={(spaceId) => setCurrentSpaceId(spaceId)}
               onAcceptInvitation={() => {
                 refreshSpaces()
                 refreshOtherSpacesIfShown()
@@ -451,14 +462,18 @@ export default function App({ onLogout }) {
           />
         ) : isCorporate ? (
           <>
-            <CorporateSpaceView
-              todos={todos}
-              spaceDetail={spaceDetail}
-              corpTab={corpTab}
-              currentUser={currentUser}
-              onRefresh={() => loadTodos(true)}
-              onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
-            />
+            {corpTab === 'activity' && currentSpace?.role === 'admin' ? (
+              <SpaceActivityView spaceId={currentSpaceId} active />
+            ) : (
+              <CorporateSpaceView
+                todos={todos}
+                spaceDetail={spaceDetail}
+                corpTab={corpTab}
+                currentUser={currentUser}
+                onRefresh={() => loadTodos(true)}
+                onSelectTask={(task) => setSelectedTaskId(task?.id ?? null)}
+              />
+            )}
             <AssignTaskModal
               open={assignModalOpen}
               spaceId={currentSpaceId}
@@ -532,7 +547,6 @@ export default function App({ onLogout }) {
                       )}
                     </div>
                     <div className="tree-root tree-root--other">
-                      <div className="tree-block-title">From other spaces</div>
                       {otherSpacesFetchError ? (
                         <p className="tree-other-empty tree-other-error">{otherSpacesFetchError}</p>
                       ) : null}

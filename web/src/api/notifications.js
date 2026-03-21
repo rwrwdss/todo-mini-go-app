@@ -27,9 +27,28 @@ export async function getNotifications(limit = 50) {
   return handleResponse(res)
 }
 
-export async function markNotificationRead(id) {
+export async function updateNotification(id, body = { read: true }) {
   const res = await authFetch(`${API_BASE}/notifications/${id}`, {
     method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (res.status === 200) return
+  const text = await res.text()
+  if (!res.ok) throw new Error(text || `HTTP ${res.status}`)
+}
+
+export async function markNotificationRead(id) {
+  return updateNotification(id, { read: true })
+}
+
+export async function markNotificationUnread(id) {
+  return updateNotification(id, { read: false })
+}
+
+export async function archiveNotification(id) {
+  const res = await authFetch(`${API_BASE}/notifications/${id}/archive`, {
+    method: 'POST',
   })
   if (res.status === 200) return
   const text = await res.text()

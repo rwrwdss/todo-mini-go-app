@@ -2,6 +2,7 @@
 server
 /notifier
 bin/
+__debug_bin
 *.exe
 *.exe~
 *.dll
@@ -17,6 +18,7 @@ coverage.out
 *.prof
 *.cpuprofile
 *.memprofile
+*.coverprofile
 /tmp/
 /air/
 
@@ -47,6 +49,10 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+
+# Secrets / keys (never commit)
+*.pem
+*.key
 
 # OS
 .DS_Store

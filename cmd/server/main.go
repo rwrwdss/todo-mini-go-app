@@ -18,6 +18,7 @@ import (
 	"todo-go-app/internal/auth"
 	"todo-go-app/internal/config"
 	"todo-go-app/internal/handlers"
+	"todo-go-app/internal/httpmw"
 	"todo-go-app/internal/storage"
 
 	httpSwagger "github.com/swaggo/http-swagger" // for swagger UI
@@ -56,20 +57,20 @@ func main() {
 		DB: db,
 	}
 
-	http.HandleFunc("/api/auth/register", h.Register)
-	http.HandleFunc("/api/auth/login", h.Login)
-	http.HandleFunc("/api/auth/check", auth.RequireAuth(h.CheckSession))
-	http.HandleFunc("/api/todos", auth.RequireAuth(h.GetTodos))
-	http.HandleFunc("/api/todos/", auth.RequireAuth(h.TodosByID))
-	http.HandleFunc("/api/create", auth.RequireAuth(h.CreateTodo))
-	http.HandleFunc("/api/spaces", auth.RequireAuth(h.SpacesRouter))
-	http.HandleFunc("/api/spaces/", auth.RequireAuth(h.SpacesRouter))
-	http.HandleFunc("/api/invitations", auth.RequireAuth(h.InvitationsRouter))
-	http.HandleFunc("/api/invitations/", auth.RequireAuth(h.InvitationsRouter))
-	http.HandleFunc("POST /api/invitations/{id}/accept", auth.RequireAuth(h.AcceptInvitation))
-	http.HandleFunc("POST /api/invitations/{id}/decline", auth.RequireAuth(h.DeclineInvitation))
-	http.HandleFunc("/api/notifications", auth.RequireAuth(h.NotificationsRouter))
-	http.HandleFunc("/api/notifications/", auth.RequireAuth(h.NotificationsRouter))
+	http.HandleFunc("/api/auth/register", httpmw.LogRequests(h.Register))
+	http.HandleFunc("/api/auth/login", httpmw.LogRequests(h.Login))
+	http.HandleFunc("/api/auth/check", auth.RequireAuth(httpmw.LogRequests(h.CheckSession)))
+	http.HandleFunc("/api/todos", auth.RequireAuth(httpmw.LogRequests(h.GetTodos)))
+	http.HandleFunc("/api/todos/", auth.RequireAuth(httpmw.LogRequests(h.TodosByID)))
+	http.HandleFunc("/api/create", auth.RequireAuth(httpmw.LogRequests(h.CreateTodo)))
+	http.HandleFunc("/api/spaces", auth.RequireAuth(httpmw.LogRequests(h.SpacesRouter)))
+	http.HandleFunc("/api/spaces/", auth.RequireAuth(httpmw.LogRequests(h.SpacesRouter)))
+	http.HandleFunc("/api/invitations", auth.RequireAuth(httpmw.LogRequests(h.InvitationsRouter)))
+	http.HandleFunc("/api/invitations/", auth.RequireAuth(httpmw.LogRequests(h.InvitationsRouter)))
+	http.HandleFunc("POST /api/invitations/{id}/accept", auth.RequireAuth(httpmw.LogRequests(h.AcceptInvitation)))
+	http.HandleFunc("POST /api/invitations/{id}/decline", auth.RequireAuth(httpmw.LogRequests(h.DeclineInvitation)))
+	http.HandleFunc("/api/notifications", auth.RequireAuth(httpmw.LogRequests(h.NotificationsRouter)))
+	http.HandleFunc("/api/notifications/", auth.RequireAuth(httpmw.LogRequests(h.NotificationsRouter)))
 	cssFS, _ := fs.Sub(swaggerThemeCSS, "static")
 	http.HandleFunc("/swagger/theme.css", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")

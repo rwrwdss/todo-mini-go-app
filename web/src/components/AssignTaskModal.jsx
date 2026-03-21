@@ -7,6 +7,22 @@ const PRIORITIES = [
   { value: 'high', label: 'High' },
 ]
 
+function localInputToIso(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!m) return null
+  const year = Number(m[1])
+  const month = Number(m[2]) - 1
+  const day = Number(m[3])
+  const hour = Number(m[4])
+  const minute = Number(m[5])
+  const second = Number(m[6] || '0')
+  const d = new Date(year, month, day, hour, minute, second)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
 export default function AssignTaskModal({ open, spaceId, members = [], existingTags = [], onSave, onClose }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -40,7 +56,10 @@ export default function AssignTaskModal({ open, spaceId, members = [], existingT
     if (!assigneeId) {
       return
     }
-    const dueAt = dueDateTime.trim() ? new Date(dueDateTime.trim()).toISOString() : null
+    const dueAt = dueDateTime.trim() ? localInputToIso(dueDateTime) : null
+    if (dueDateTime.trim() && !dueAt) {
+      return
+    }
     onSave({
       title: t,
       description: description.trim(),
