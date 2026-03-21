@@ -121,4 +121,9 @@ curl -X POST http://localhost:8080/api/create \
 - ~~Подключить Docker~~ (реализовано)
 - Подключить брокер сообщений (rabbitmq, kafka и т.п.)
 
-![Screenshot](https://github.com/user-attachments/assets/a0248197-f54a-4800-ad06-69ca25bc4a07)
+<img width="1467" height="828" alt="image" src="https://github.com/user-attachments/assets/9020537f-94e6-462a-bf84-9b3d4d7fbd51" />
+
+<img width="1470" height="836" alt="image" src="https://github.com/user-attachments/assets/f4326ce6-1829-49d3-b63a-afa6c173fefc" />
+
+<img width="1470" height="840" alt="image" src="https://github.com/user-attachments/assets/12d20835-c0cd-4e64-88ed-7628c2498473" />
+
