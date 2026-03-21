@@ -65,17 +65,17 @@ func run(db *sql.DB, dedupeHours int) {
 	}
 
 	for _, x := range overdue {
-		if shouldCreate(db, x.todoID, x.assigneeID, "overdue", dedupeSince) {
+		if shouldCreate(db, x.todoID, x.assigneeID, "task_overdue", dedupeSince) {
 			_, _ = db.Exec(
-				"INSERT INTO notifications (user_id, todo_id, type) VALUES ($1, $2, 'overdue')",
+				"INSERT INTO notifications (user_id, todo_id, type) VALUES ($1, $2, 'task_overdue')",
 				x.assigneeID, x.todoID,
 			)
 		}
 	}
 	for _, x := range dueSoon {
-		if shouldCreate(db, x.todoID, x.assigneeID, "due_soon", dedupeSince) {
+		if shouldCreate(db, x.todoID, x.assigneeID, "task_due_soon", dedupeSince) {
 			_, _ = db.Exec(
-				"INSERT INTO notifications (user_id, todo_id, type) VALUES ($1, $2, 'due_soon')",
+				"INSERT INTO notifications (user_id, todo_id, type) VALUES ($1, $2, 'task_due_soon')",
 				x.assigneeID, x.todoID,
 			)
 		}

@@ -293,6 +293,21 @@ func (h *Handler) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	todo.ID = id
 	todo.SpaceID = &spaceID
 	todo.AssigneeID = &assigneeID
+	if spaceID > 0 {
+		actorID := userID
+		todoID := id
+		subjectID := assigneeID
+		h.logSpaceActivity(spaceID, &actorID, "todo_created", &todoID, &subjectID, map[string]interface{}{
+			"title":    todo.Title,
+			"priority": todo.Priority,
+			"tag":      todo.Tag,
+		})
+		h.createNotification(assigneeID, &todoID, "task_created", &spaceID, nil)
+		if assigneeID != userID {
+			h.logSpaceActivity(spaceID, &actorID, "todo_assigned", &todoID, &subjectID, nil)
+			h.createNotification(assigneeID, &todoID, "task_assigned", &spaceID, nil)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(todo)
 }
@@ -476,6 +491,13 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to get todo", http.StatusInternalServerError)
 		return
 	}
+	prevDone := done
+	prevTitle := title
+	prevDescription := description
+	prevPriority := priority
+	prevTag := tag
+	prevParentID := parentID
+	prevDueAt := currentDueAt
 	if todoSpaceID > 0 {
 		if !h.canAccessSpace(todoSpaceID, userID) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
@@ -501,6 +523,11 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "Failed to update todo", http.StatusInternalServerError)
 			return
+		}
+		if todoSpaceID > 0 && prevDone != done {
+			actorID := userID
+			todoID := id
+			h.logSpaceActivity(todoSpaceID, &actorID, "todo_done_toggled", &todoID, nullIntPtr(assigneeID), map[string]interface{}{"done": done})
 		}
 		todo := Todo{ID: id, Title: title, Done: done, Description: description, Priority: priority, Tag: tag}
 		w.Header().Set("Content-Type", "application/json")
@@ -580,6 +607,35 @@ func (h *Handler) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to update todo", http.StatusInternalServerError)
 		return
+	}
+	if todoSpaceID > 0 {
+		actorID := userID
+		todoID := id
+		changed := map[string]interface{}{}
+		if prevTitle != title {
+			changed["title"] = true
+		}
+		if prevDescription != description {
+			changed["description"] = true
+		}
+		if prevPriority != priority {
+			changed["priority"] = true
+		}
+		if prevTag != tag {
+			changed["tag"] = true
+		}
+		if prevParentID.Valid != parentID.Valid || (prevParentID.Valid && parentID.Valid && prevParentID.Int64 != parentID.Int64) {
+			changed["parent_id"] = true
+		}
+		if prevDueAt.Valid != currentDueAt.Valid || (prevDueAt.Valid && currentDueAt.Valid && !prevDueAt.Time.Equal(currentDueAt.Time)) || body.DueAt != nil || body.DueDate != nil {
+			changed["due_at"] = true
+		}
+		if prevDone != done {
+			h.logSpaceActivity(todoSpaceID, &actorID, "todo_done_toggled", &todoID, nullIntPtr(assigneeID), map[string]interface{}{"done": done})
+		}
+		if len(changed) > 0 {
+			h.logSpaceActivity(todoSpaceID, &actorID, "todo_updated", &todoID, nullIntPtr(assigneeID), map[string]interface{}{"fields": changed})
+		}
 	}
 	todo := Todo{ID: id, Title: title, Done: done, Description: description, Priority: priority, Tag: tag}
 	if parentIDVal != nil {

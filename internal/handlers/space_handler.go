@@ -347,10 +347,7 @@ func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to send invitation", http.StatusInternalServerError)
 		return
 	}
-	_, _ = h.DB.Exec(
-		"INSERT INTO notifications (user_id, type, space_id, invitation_id) VALUES ($1, 'space_invitation', $2, $3)",
-		inviteeID, spaceID, invID,
-	)
+	h.createNotification(inviteeID, nil, "space_invitation", &spaceID, &invID)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -371,7 +368,7 @@ func (h *Handler) SpacesRouter(w http.ResponseWriter, r *http.Request) {
 	h.SpacesByID(w, r)
 }
 
-// SpacesByID handles GET /api/spaces/:id and POST /api/spaces/:id/members.
+// SpacesByID handles GET /api/spaces/:id, POST /api/spaces/:id/members and GET /api/spaces/:id/activity.
 func (h *Handler) SpacesByID(w http.ResponseWriter, r *http.Request) {
 	trimmed := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
 	trimmed = strings.Trim(trimmed, "/")
@@ -385,6 +382,14 @@ func (h *Handler) SpacesByID(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 && parts[1] == "members" {
 		if r.Method == http.MethodPost {
 			h.InviteMember(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "activity" {
+		if r.Method == http.MethodGet {
+			h.GetSpaceActivity(w, r)
 			return
 		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

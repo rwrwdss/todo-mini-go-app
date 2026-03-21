@@ -62,7 +62,18 @@ func InitPostgres(connStr string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	_, _ = db.Exec(`ALTER TABLE spaces ADD CONSTRAINT spaces_owner_type_uniq UNIQUE (owner_id, type)`)
+	_, _ = db.Exec(`
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1
+				FROM pg_constraint
+				WHERE conname = 'spaces_owner_type_uniq'
+			) THEN
+				ALTER TABLE spaces ADD CONSTRAINT spaces_owner_type_uniq UNIQUE (owner_id, type);
+			END IF;
+		END $$;
+	`)
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS space_members (
@@ -125,9 +136,10 @@ func InitPostgres(connStr string) (*sql.DB, error) {
 			id SERIAL PRIMARY KEY,
 			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			todo_id INTEGER REFERENCES todos(id) ON DELETE CASCADE,
-			type TEXT NOT NULL CHECK (type IN ('overdue', 'due_soon', 'space_invitation')),
+			type TEXT NOT NULL CHECK (type IN ('task_overdue', 'task_due_soon', 'space_invitation', 'task_assigned', 'task_created')),
 			created_at TIMESTAMPTZ DEFAULT NOW(),
 			read_at TIMESTAMPTZ,
+			archived_at TIMESTAMPTZ,
 			space_id INTEGER REFERENCES spaces(id) ON DELETE CASCADE,
 			invitation_id INTEGER
 		);
@@ -136,11 +148,35 @@ func InitPostgres(connStr string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
+	_, _ = db.Exec(`UPDATE notifications SET type = 'task_overdue' WHERE type = 'overdue'`)
+	_, _ = db.Exec(`UPDATE notifications SET type = 'task_due_soon' WHERE type = 'due_soon'`)
 	_, _ = db.Exec(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`)
-	_, _ = db.Exec(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN ('overdue', 'due_soon', 'space_invitation'))`)
+	_, _ = db.Exec(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN ('task_overdue', 'task_due_soon', 'space_invitation', 'task_assigned', 'task_created'))`)
 	_, _ = db.Exec(`ALTER TABLE notifications ALTER COLUMN todo_id DROP NOT NULL`)
 	_, _ = db.Exec(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS space_id INTEGER REFERENCES spaces(id) ON DELETE CASCADE`)
 	_, _ = db.Exec(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS invitation_id INTEGER`)
+	_, _ = db.Exec(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS notifications_user_created_idx ON notifications (user_id, created_at DESC)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS notifications_user_read_idx ON notifications (user_id, read_at, archived_at)`)
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS space_activity_logs (
+			id BIGSERIAL PRIMARY KEY,
+			space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+			actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+			event_type TEXT NOT NULL,
+			todo_id INTEGER REFERENCES todos(id) ON DELETE SET NULL,
+			subject_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+			payload JSONB,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+	`)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS space_activity_logs_space_created_idx ON space_activity_logs (space_id, created_at DESC)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS space_activity_logs_event_type_idx ON space_activity_logs (event_type)`)
 
 	_, err = db.Exec(`
 		INSERT INTO spaces (name, type, owner_id)

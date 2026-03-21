@@ -111,6 +111,9 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = h.DB.Exec("UPDATE space_invitations SET status = 'accepted' WHERE id = $1", invitationID)
+	actorID := userID
+	subjectID := userID
+	h.logSpaceActivity(spaceID, &actorID, "member_joined_space", nil, &subjectID, map[string]interface{}{"role": role})
 	w.WriteHeader(http.StatusOK)
 }
 
